@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">通启数字孪生</string>
+    <string name="menu_statistics">统计</string>
+    <string name="menu_refresh">刷新</string>
+    <string name="weather_loading">正在加载天气...</string>
+    <string name="weather_error">天气加载失败</string>
+    <string name="weather_retry">重试</string>
+    <string name="network_error">网络异常，请检查网络连接</string>
+    <string name="data_parse_error">数据解析异常</string>
+    <string name="database_error">数据库操作异常</string>
+    <string name="webview_error_title">页面加载失败</string>
+    <string name="webview_error_retry">重新加载</string>
+    <string name="statistics_title">数据统计</string>
+    <string name="temperature_trend">近7天平均气温趋势</string>
+    <string name="total_visits">累计访问次数</string>
+    <string name="visits_count">%d 次</string>
+    <string name="no_data">暂无数据</string>
+    <string name="celsius_format">%s°C</string>
+    <string name="humidity_format">湿度 %d%%</string>
+    <string name="date_format">yyyy-MM-dd</string>
+</resources>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    
+    <!-- 半透明背景颜色 - 透明度75% -->
+    <solid android:color="#BF1a3a4f" />
+    
+    <!-- 半透明边框 - 透明度75% -->
+    <stroke
+        android:width="2dp"
+        android:color="#BF00ffff" />
+    
+    <!-- 圆角 -->
+    <corners android:radius="8dp" />
+    
+    <!-- 内边距 -->
+    <padding
+        android:left="8dp"
+        android:top="8dp"
+        android:right="8dp"
+        android:bottom="8dp" />
+    
+</shape>
