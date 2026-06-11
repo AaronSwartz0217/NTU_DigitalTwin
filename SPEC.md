@@ -75,14 +75,28 @@
 - **AI 聊天**: 内置 AI 助手对话
 
 ### 3.6 数据库模块
-- **数据库名称**: ntu_qidong.db
+
+#### 3.6.1 本地数据库（SQLite + Room）
+- **数据库名称**: `ntu_qidong.db`
+- **用途**: 本地数据缓存、离线访问
 - **表结构**:
   - `user`: 用户信息表
-  - `post`: 帖子表
-  - `comment`: 评论表
-  - `message`: 消息表
+  - `post`: 帖子表（缓存）
+  - `comment`: 评论表（缓存）
+  - `message`: 消息表（缓存）
   - `weather_history`: 天气历史记录表
   - `app_visit`: 应用访问记录表
+
+#### 3.6.2 后端数据库（MySQL + SqlSugar）
+- **数据库名称**: `chat_db`
+- **用途**: 核心数据存储、多端同步
+- **表结构**:
+  - `Users`: 用户表
+  - `Posts`: 帖子表
+  - `Comments`: 评论表
+  - `Messages`: 消息表
+  - `Friends`: 好友关系表
+  - `RefreshTokens`: Token刷新表
 
 ### 3.7 JSBridge 接口规格
 
