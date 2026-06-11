@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8FAFC"
+    android:orientation="vertical">
+
+    <!-- 顶部渐变头部 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="180dp"
+        android:background="@drawable/header_gradient"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingTop="40dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="好友列表"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <!-- 好友统计（待后端实现后显示） -->
+        <TextView
+            android:id="@+id/tv_friend_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="好友功能开发中..."
+            android:textColor="#B3D4FF"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+    <!-- 主内容区域（包含公共聊天室 + 好友列表） -->
+    <ScrollView
+        android:id="@+id/friends_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- ========== 公共聊天室入口 ========== -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="12dp"
+                android:paddingLeft="4dp"
+                android:paddingTop="8dp"
+                android:text="聊天"
+                android:textColor="#64748B"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <!-- 公共聊天室卡片 -->
+            <LinearLayout
+                android:id="@+id/ll_public_chatroom"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <!-- 聊天室图标背景 -->
+                <View
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/circle_gradient_blue" />
+
+                <!-- 聊天室信息 -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="公共聊天室"
+                        android:textColor="#1E293B"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="和所有人一起聊天"
+                        android:textColor="#94A3B8"
+                        android:textSize="13sp" />
+
+                </LinearLayout>
+
+                <!-- 在线人数（待WebSocket实现） -->
+                <TextView
+                    android:id="@+id/tv_online_count"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/badge_background"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="4dp"
+                    android:text="--人在线"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp" />
+
+            </LinearLayout>
+
+            <!-- 分割线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginBottom="12dp"
+                android:layout_marginTop="20dp"
+                android:alpha="0.1"
+                android:background="#64748B" />
+
+            <!-- ========== 好友分组：在线好友 ========== -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="12dp"
+                android:paddingLeft="4dp"
+                android:text="在线好友 (0)"
+                android:textColor="#64748B"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <!-- 好友卡片会动态添加到这里 -->
+
+            <!-- ========== 好友分组：离线好友 ========== -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingBottom="12dp"
+                android:paddingLeft="4dp"
+                android:paddingTop="24dp"
+                android:text="离线好友 (0)"
+                android:textColor="#94A3B8"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <!-- 空状态视图 -->
+    <LinearLayout
+        android:id="@+id/empty_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 好友图标占位 -->
+        <View
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:alpha="0.15"
+            android:background="@drawable/ic_nav_friends" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="暂无好友"
+            android:textColor="#94A3B8"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:paddingHorizontal="32dp"
+            android:text="好友功能正在开发中，敬请期待~"
+            android:textColor="#CBD5E1"
+            android:textSize="13sp"
+            android:textAlignment="center" />
+
+    </LinearLayout>
+
+</LinearLayout>

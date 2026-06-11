@@ -8,7 +8,8 @@ import androidx.room.ForeignKey;
         foreignKeys = {
             @ForeignKey(entity = Post.class, parentColumns = "id", childColumns = "postId", onDelete = ForeignKey.CASCADE),
             @ForeignKey(entity = User.class, parentColumns = "userId", childColumns = "authorId", onDelete = ForeignKey.SET_NULL)
-        })
+        },
+        indices = {@androidx.room.Index(value = {"postId"}), @androidx.room.Index(value = {"authorId"})})
 public class Comment {
     @PrimaryKey(autoGenerate = true)
     private int id;

@@ -15,6 +15,9 @@ public interface PostDao {
     @Update
     void update(Post post);
 
+    @Query("DELETE FROM posts WHERE id = :postId")
+    void deletePost(int postId);
+
     @Query("SELECT * FROM posts ORDER BY createdAt DESC")
     List<Post> getAllPosts();
 
@@ -26,4 +29,7 @@ public interface PostDao {
 
     @Query("UPDATE posts SET commentCount = commentCount + 1 WHERE id = :postId")
     void incrementCommentCount(int postId);
+
+    @Query("SELECT COUNT(*) FROM posts WHERE authorId = :authorId")
+    int getPostCountByAuthor(long authorId);
 }

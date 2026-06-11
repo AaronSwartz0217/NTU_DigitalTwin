@@ -11,6 +11,9 @@ public interface CommentDao {
     @Insert
     long insert(Comment comment);
 
+    @Query("DELETE FROM comments WHERE id = :commentId")
+    void delete(int commentId);
+
     @Query("SELECT * FROM comments WHERE postId = :postId ORDER BY createdAt ASC")
     List<Comment> getCommentsByPostId(int postId);
 }

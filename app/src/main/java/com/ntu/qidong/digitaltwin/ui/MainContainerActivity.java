@@ -18,7 +18,8 @@ public class MainContainerActivity extends AppCompatActivity {
     private BottomNavigationView bottomNavigation;
     private Fragment currentFragment;
     private ForumFragment forumFragment;
-    private MessageFragment messageFragment;
+    private AIFragment aiFragment;
+    private FriendsFragment friendsFragment;
     private ProfileFragment profileFragment;
 
     private SharedPreferences userPrefs;
@@ -35,7 +36,8 @@ public class MainContainerActivity extends AppCompatActivity {
         bottomNavigation = findViewById(R.id.bottom_navigation);
 
         forumFragment = new ForumFragment();
-        messageFragment = new MessageFragment();
+        aiFragment = new AIFragment();
+        friendsFragment = new FriendsFragment();
         profileFragment = new ProfileFragment();
 
         bottomNavigation.setOnItemSelectedListener(item -> {
@@ -43,8 +45,11 @@ public class MainContainerActivity extends AppCompatActivity {
             if (itemId == R.id.nav_forum) {
                 showFragment(forumFragment);
                 return true;
+            } else if (itemId == R.id.nav_ai) {
+                showFragment(aiFragment);
+                return true;
             } else if (itemId == R.id.nav_message) {
-                showFragment(messageFragment);
+                showFragment(friendsFragment);
                 return true;
             } else if (itemId == R.id.nav_visualization) {
                 Intent intent = new Intent(MainContainerActivity.this, SplashActivity.class);
@@ -85,8 +90,15 @@ public class MainContainerActivity extends AppCompatActivity {
             transaction.add(R.id.fragment_container, fragment);
         }
 
-        transaction.commitAllowingStateLoss();
+        transaction.commit();
         currentFragment = fragment;
+    }
+
+    /**
+     * 获取个人中心Fragment实例
+     */
+    public ProfileFragment getProfileFragment() {
+        return profileFragment;
     }
 
     public BottomNavigationView getBottomNavigation() {

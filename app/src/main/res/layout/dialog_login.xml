@@ -3,30 +3,46 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:background="@drawable/card_background"
+    android:padding="24dp">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="用户登录"
+        android:textColor="#1E293B"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="20dp" />
 
     <EditText
         android:id="@+id/et_username"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="用户名"
-        android:textColorHint="#88cccc"
-        android:textColor="#ffffff"
+        android:layout_height="48dp"
+        android:hint="请输入用户名"
+        android:textColorHint="#94A3B8"
+        android:textColor="#1E293B"
         android:textSize="14sp"
-        android:background="@drawable/search_bar_background"
-        android:padding="12dp" />
+        android:background="@drawable/chat_input_bg_modern"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:singleLine="true" />
 
     <EditText
         android:id="@+id/et_password"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="密码"
-        android:textColorHint="#88cccc"
-        android:textColor="#ffffff"
+        android:layout_height="48dp"
+        android:hint="请输入密码"
+        android:textColorHint="#94A3B8"
+        android:textColor="#1E293B"
         android:textSize="14sp"
-        android:background="@drawable/search_bar_background"
-        android:padding="12dp"
+        android:background="@drawable/chat_input_bg_modern"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
         android:inputType="textPassword"
+        android:singleLine="true"
         android:layout_marginTop="12dp" />
 
 </LinearLayout>

@@ -23,4 +23,11 @@ public interface UserDao {
 
     @Update
     void update(User user);
+
+    // 管理员相关查询
+    @Query("SELECT * FROM users WHERE isAdmin = 1 LIMIT 1")
+    User getAdminUser();
+
+    @Query("SELECT COUNT(*) FROM users WHERE userId = :userId AND isAdmin = 1")
+    boolean isUserAdmin(long userId);
 }

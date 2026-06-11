@@ -3,47 +3,225 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@drawable/gradient_background">
+    android:background="#F8FAFC">
 
-    <!-- 顶部标题区域 -->
+    <!-- ========== 简洁顶部栏 ========== -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/profile_header_bg"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:paddingLeft="20dp"
+        android:paddingRight="20dp"
+        android:paddingTop="44dp"
+        android:paddingBottom="18dp">
 
+        <!-- 导航行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <FrameLayout
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/icon_circle_white_alpha"
+                android:gravity="center">
+
+                <ImageView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:src="@drawable/ic_nav_bell"
+                    android:layout_gravity="center" />
+
+            </FrameLayout>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <!-- 未读徽章 -->
+            <FrameLayout
+                android:layout_width="36dp"
+                android:layout_height="36dp">
+
+                <TextView
+                    android:id="@+id/tv_unread_count"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:background="@drawable/unread_badge_bg"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:visibility="gone"
+                    android:layout_gravity="top|end"
+                    android:translationX="-4dp"
+                    android:translationY="-2dp" />
+
+            </FrameLayout>
+
+        </LinearLayout>
+
+        <!-- 标题 -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="消息通知"
-            android:textColor="#1A1A2E"
-            android:textSize="24sp"
-            android:textStyle="bold" />
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginTop="12dp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="最新动态"
-            android:textColor="#8E8E93"
-            android:textSize="12sp"
+            android:text="查看所有通知和消息"
+            android:textColor="#C7D2FE"
+            android:textSize="13sp"
             android:layout_marginTop="4dp" />
 
     </LinearLayout>
 
-    <!-- 消息列表 -->
+    <!-- ========== 主内容区 ========== -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingBottom="16dp">
+        android:scrollbars="none"
+        android:clipToPadding="false"
+        android:paddingBottom="80dp">
 
         <LinearLayout
-            android:id="@+id/messages_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:orientation="vertical"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp"
+            android:paddingTop="14dp">
+
+            <!-- 消息分类 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <!-- 系统通知 -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:background="@drawable/card_background"
+                    android:padding="16dp"
+                    android:gravity="center"
+                    android:layout_marginEnd="7dp">
+
+                    <View
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/icon_circle_blue" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="系统通知"
+                        android:textColor="#1E293B"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="10dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 条"
+                        android:textColor="#94A3B8"
+                        android:textSize="11sp"
+                        android:layout_marginTop="2dp" />
+
+                </LinearLayout>
+
+                <!-- 互动消息 -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:background="@drawable/card_background"
+                    android:padding="16dp"
+                    android:gravity="center"
+                    android:layout_marginStart="7dp">
+
+                    <View
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/icon_circle_green" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="互动消息"
+                        android:textColor="#1E293B"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="10dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 条"
+                        android:textColor="#94A3B8"
+                        android:textSize="11sp"
+                        android:layout_marginTop="2dp" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- 消息列表容器 -->
+            <LinearLayout
+                android:id="@+id/messages_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="14dp" />
+
+            <!-- 空状态提示 -->
+            <LinearLayout
+                android:id="@+id/empty_state"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="32dp"
+                android:visibility="gone">
+
+                <View
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:background="@drawable/empty_state_bg" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="暂无消息"
+                    android:textColor="#94A3B8"
+                    android:textSize="15sp"
+                    android:layout_marginTop="14dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="当有新消息时会在这里显示"
+                    android:textColor="#CBD5E1"
+                    android:textSize="12sp"
+                    android:layout_marginTop="4dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
 
     </ScrollView>
 

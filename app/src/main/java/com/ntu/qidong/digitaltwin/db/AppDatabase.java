@@ -6,7 +6,7 @@ import androidx.room.Database;
 import androidx.room.Room;
 import androidx.room.RoomDatabase;
 
-@Database(entities = {Post.class, User.class, Comment.class, Message.class}, version = 1, exportSchema = false)
+@Database(entities = {Post.class, User.class, Comment.class, Message.class}, version = 2, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static volatile AppDatabase INSTANCE;
 
@@ -23,7 +23,7 @@ public abstract class AppDatabase extends RoomDatabase {
                             context.getApplicationContext(),
                             AppDatabase.class,
                             "ntu_digital_twin_db"
-                    ).allowMainThreadQueries().build();
+                    ).allowMainThreadQueries().fallbackToDestructiveMigration().build();
                 }
             }
         }

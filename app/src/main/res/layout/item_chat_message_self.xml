@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingLeft="60dp"
+    android:paddingRight="14dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <!-- 消息气泡（右侧，自己的消息） -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:background="@drawable/chat_bubble_self"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        android:maxWidth="280dp">
+
+        <TextView
+            android:id="@+id/tv_message_content"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textIsSelectable="true"
+            android:lineSpacingExtra="2dp" />
+
+    </LinearLayout>
+
+    <!-- 时间 -->
+    <TextView
+        android:id="@+id/tv_message_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginTop="4dp"
+        android:textColor="#94A3B8"
+        android:textSize="11sp" />
+
+</LinearLayout>

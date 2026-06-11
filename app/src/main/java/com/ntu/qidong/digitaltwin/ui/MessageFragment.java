@@ -62,7 +62,18 @@ public class MessageFragment extends Fragment {
             messageItem.setBackgroundResource(R.drawable.post_card);
             messageItem.setPadding(16, 16, 16, 16);
             messageItem.setClickable(true);
-            messageItem.setOnClickListener(v -> handleMessageClick(message));
+            messageItem.setOnClickListener(v -> {
+                v.animate()
+                        .scaleX(0.97f)
+                        .scaleY(0.97f)
+                        .setDuration(100)
+                        .withEndAction(() -> {
+                            v.setScaleX(1f);
+                            v.setScaleY(1f);
+                            handleMessageClick(message);
+                        })
+                        .start();
+            });
 
             TextView titleText = new TextView(getActivity());
             titleText.setText(message.getTitle());

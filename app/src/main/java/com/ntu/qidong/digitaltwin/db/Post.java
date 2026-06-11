@@ -5,7 +5,8 @@ import androidx.room.PrimaryKey;
 import androidx.room.ForeignKey;
 
 @Entity(tableName = "posts",
-        foreignKeys = @ForeignKey(entity = User.class, parentColumns = "userId", childColumns = "authorId", onDelete = ForeignKey.SET_NULL))
+        foreignKeys = @ForeignKey(entity = User.class, parentColumns = "userId", childColumns = "authorId", onDelete = ForeignKey.SET_NULL),
+        indices = {@androidx.room.Index(value = {"authorId"})})
 public class Post {
     @PrimaryKey(autoGenerate = true)
     private int id;

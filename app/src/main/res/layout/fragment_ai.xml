@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8FAFC"
+    android:orientation="vertical">
+
+    <!-- ========== 简洁顶部栏 ========== -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/profile_header_bg"
+        android:orientation="vertical"
+        android:paddingLeft="20dp"
+        android:paddingRight="20dp"
+        android:paddingTop="44dp"
+        android:paddingBottom="16dp">
+
+        <!-- 导航行 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <!-- AI头像 -->
+            <FrameLayout
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/ai_avatar_bg"
+                android:gravity="center">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_ai_bot"
+                    android:layout_gravity="center" />
+
+            </FrameLayout>
+
+            <!-- 标题 -->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="启东校区小助手"
+                android:textColor="#FFFFFF"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:paddingStart="10dp" />
+
+            <!-- 清空按钮 -->
+            <ImageView
+                android:id="@+id/btn_clear_chat"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_clear_chat"
+                android:padding="4dp" />
+
+        </LinearLayout>
+
+        <!-- 副标题提示 -->
+        <TextView
+            android:id="@+id/tv_ai_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="基于讯飞星火Spark X2 · 支持多轮对话"
+            android:textColor="#C7D2FE"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+    <!-- ========== 需要登录的提示界面（默认显示） ========== -->
+    <LinearLayout
+        android:id="@+id/login_required_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp">
+
+        <!-- 锁定图标背景 -->
+        <View
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:background="@drawable/icon_circle_blue"
+            android:alpha="0.3" />
+
+        <!-- 锁定图标文字 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="\uD83D\uDD12"
+            android:textSize="32sp"
+            android:layout_marginTop="-70dp"
+            android:layout_marginBottom="24dp" />
+
+        <!-- 提示标题 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="需要登录才能使用AI助手"
+            android:textColor="#1E293B"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center" />
+
+        <!-- 提示说明 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="登录后即可与启东校区小助手进行智能对话\n获取关于校园生活的专业解答"
+            android:textColor="#64748B"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="32dp" />
+
+        <!-- 去登录按钮 -->
+        <TextView
+            android:id="@+id/btn_go_to_login"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:text="去登录"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="@drawable/button_blue"
+            android:paddingStart="36dp"
+            android:paddingEnd="36dp"
+            android:elevation="2dp" />
+
+    </LinearLayout>
+
+    <!-- ========== 聊天界面容器（默认隐藏） ========== -->
+    <LinearLayout
+        android:id="@+id/chat_container_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- ========== 聊天消息列表 ========== -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_chat_messages"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="none"
+            android:overScrollMode="never" />
+
+        <!-- ========== 输入区域 ========== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#FFFFFF"
+            android:elevation="6dp"
+            android:orientation="vertical"
+            android:paddingBottom="20dp"
+            android:clipToPadding="false">
+
+            <!-- 输入框和发送按钮 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="14dp"
+                android:layout_marginRight="14dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/chat_input_bg_modern"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:minHeight="48dp"
+                android:paddingEnd="8dp">
+
+                <EditText
+                    android:id="@+id/et_message_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@null"
+                    android:hint="输入你的问题..."
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:maxLines="4"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="8dp"
+                    android:paddingTop="11dp"
+                    android:paddingBottom="11dp"
+                    android:textColor="#1E293B"
+                    android:textColorHint="#94A3B8"
+                    android:textSize="15sp"
+                    android:minHeight="26dp" />
+
+                <ImageButton
+                    android:id="@+id/btn_send"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="@drawable/send_button_modern"
+                    android:src="@drawable/ic_send"
+                    android:scaleType="fitCenter"
+                    android:padding="8dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 加载进度条（默认隐藏） -->
+        <ProgressBar
+            android:id="@+id/progress_loading"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:indeterminate="true"
+            android:visibility="gone"
+            android:progressTint="#6366F1" />
+
+    </LinearLayout>
+
+</LinearLayout>

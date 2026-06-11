@@ -6,7 +6,22 @@
             <certificates src="user" />
         </trust-anchors>
     </base-config>
-    
+
+    <!-- 允许本地开发服务器使用 HTTP -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">10.0.3.2</domain>
+    </domain-config>
+
+    <!-- 允许局域网 IP 使用 HTTP（用于真机调试） -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.1.100</domain>
+        <domain includeSubdomains="true">192.168.0.100</domain>
+        <domain includeSubdomains="true">192.168.</domain>
+        <domain includeSubdomains="true">10.0.</domain>
+    </domain-config>
+
     <domain-config>
         <domain includeSubdomains="true">github.io</domain>
         <domain includeSubdomains="true">github.com</domain>
@@ -15,7 +30,7 @@
             <certificates src="user" />
         </trust-anchors>
     </domain-config>
-    
+
     <domain-config>
         <domain includeSubdomains="true">qweatherapi.com</domain>
         <domain includeSubdomains="true">re.qweatherapi.com</domain>

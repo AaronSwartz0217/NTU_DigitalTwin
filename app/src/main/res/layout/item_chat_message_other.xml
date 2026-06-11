@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingLeft="14dp"
+    android:paddingRight="60dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <!-- 用户名 -->
+    <TextView
+        android:id="@+id/tv_user_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:textColor="#3B82F6"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <!-- 消息气泡（左侧，他人的消息） -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/chat_bubble_other"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="10dp"
+        android:maxWidth="280dp">
+
+        <TextView
+            android:id="@+id/tv_message_content"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#1E293B"
+            android:textSize="15sp"
+            android:textIsSelectable="true"
+            android:lineSpacingExtra="2dp" />
+
+    </LinearLayout>
+
+    <!-- 时间 -->
+    <TextView
+        android:id="@+id/tv_message_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#94A3B8"
+        android:textSize="11sp" />
+
+</LinearLayout>

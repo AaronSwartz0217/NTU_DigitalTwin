@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/card_background"
+    android:paddingBottom="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- 标题 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="注册账号"
+            android:textColor="#1E293B"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="带 * 为必填项，其他为选填"
+            android:textColor="#94A3B8"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp" />
+
+        <!-- ========== 必填信息 ========== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="账号信息"
+            android:textColor="#6366F1"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="10dp" />
+
+        <EditText
+            android:id="@+id/et_reg_username"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:hint="* 用户名"
+            android:textColorHint="#94A3B8"
+            android:textColor="#1E293B"
+            android:textSize="14sp"
+            android:background="@drawable/chat_input_bg_modern"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:singleLine="true"
+            android:maxLines="1" />
+
+        <EditText
+            android:id="@+id/et_reg_password"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:hint="* 密码 (至少6位)"
+            android:textColorHint="#94A3B8"
+            android:textColor="#1E293B"
+            android:textSize="14sp"
+            android:background="@drawable/chat_input_bg_modern"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:inputType="textPassword"
+            android:singleLine="true"
+            android:layout_marginTop="10dp" />
+
+        <EditText
+            android:id="@+id/et_reg_confirm_pwd"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:hint="* 确认密码"
+            android:textColorHint="#94A3B8"
+            android:textColor="#1E293B"
+            android:textSize="14sp"
+            android:background="@drawable/chat_input_bg_modern"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:inputType="textPassword"
+            android:singleLine="true"
+            android:layout_marginTop="10dp" />
+
+        <!-- ========== 学生档案（选填） ========== -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="学生档案（选填）"
+            android:textColor="#6366F1"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:layout_marginTop="18dp"
+            android:layout_marginBottom="10dp" />
+
+        <!-- 第一行：学号 + 姓名 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/et_reg_no"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="42dp"
+                android:hint="学号"
+                android:textColorHint="#94A3B8"
+                android:textColor="#1E293B"
+                android:textSize="13sp"
+                android:background="@drawable/chat_input_bg_modern"
+                android:paddingStart="12dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:layout_marginEnd="6dp" />
+
+            <EditText
+                android:id="@+id/et_reg_name"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="42dp"
+                android:hint="姓名"
+                android:textColorHint="#94A3B8"
+                android:textColor="#1E293B"
+                android:textSize="13sp"
+                android:background="@drawable/chat_input_bg_modern"
+                android:paddingStart="12dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:layout_marginStart="6dp" />
+
+        </LinearLayout>
+
+        <!-- 身份证号 -->
+        <EditText
+            android:id="@+id/et_reg_id_number"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:hint="身份证号"
+            android:textColorHint="#94A3B8"
+            android:textColor="#1E293B"
+            android:textSize="13sp"
+            android:background="@drawable/chat_input_bg_modern"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:singleLine="true"
+            android:inputType="text"
+            android:digits="0123456789xX"
+            android:layout_marginTop="10dp" />
+
+        <!-- 第二行：性别 + 民族 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
+
+            <!-- 性别选择 -->
+            <Spinner
+                android:id="@+id/spinner_gender"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="42dp"
+                android:prompt="@string/gender_prompt"
+                android:background="@drawable/chat_input_bg_modern"
+                android:spinnerMode="dropdown"
+                android:layout_marginEnd="6dp" />
+
+            <!-- 民族选择 -->
+            <Spinner
+                android:id="@+id/spinner_ethnic"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="42dp"
+                android:prompt="@string/ethnic_prompt"
+                android:background="@drawable/chat_input_bg_modern"
+                android:spinnerMode="dropdown"
+                android:layout_marginStart="6dp" />
+
+        </LinearLayout>
+
+        <!-- 籍贯 -->
+        <EditText
+            android:id="@+id/et_reg_native_place"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:hint="籍贯"
+            android:textColorHint="#94A3B8"
+            android:textColor="#1E293B"
+            android:textSize="13sp"
+            android:background="@drawable/chat_input_bg_modern"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:singleLine="true"
+            android:layout_marginTop="10dp" />
+
+        <!-- 第三行：生日 + 体重 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
+
+            <EditText
+                android:id="@+id/et_reg_birthday"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="42dp"
+                android:hint="生日 (YYYY-MM-DD)"
+                android:textColorHint="#94A3B8"
+                android:textColor="#1E293B"
+                android:textSize="13sp"
+                android:background="@drawable/chat_input_bg_modern"
+                android:paddingStart="12dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:inputType="date"
+                android:layout_marginEnd="6dp" />
+
+            <EditText
+                android:id="@+id/et_reg_weight"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="42dp"
+                android:hint="体重 (kg)"
+                android:textColorHint="#94A3B8"
+                android:textColor="#1E293B"
+                android:textSize="13sp"
+                android:background="@drawable/chat_input_bg_modern"
+                android:paddingStart="12dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:inputType="number"
+                android:layout_marginStart="6dp" />
+
+        </LinearLayout>
+
+        <!-- 身高 -->
+        <EditText
+            android:id="@+id/et_reg_height"
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:hint="身高 (米, 如 1.75)"
+            android:textColorHint="#94A3B8"
+            android:textColor="#1E293B"
+            android:textSize="13sp"
+            android:background="@drawable/chat_input_bg_modern"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:singleLine="true"
+            android:inputType="numberDecimal"
+            android:layout_marginTop="10dp" />
+
+    </LinearLayout>
+
+</ScrollView>

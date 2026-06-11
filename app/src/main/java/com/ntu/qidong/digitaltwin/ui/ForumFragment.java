@@ -5,19 +5,28 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.util.Log;
 
 import androidx.fragment.app.Fragment;
 
 import com.ntu.qidong.digitaltwin.R;
 import com.ntu.qidong.digitaltwin.db.AppDatabase;
+import com.ntu.qidong.digitaltwin.service.ServerApiService;
 import com.ntu.qidong.digitaltwin.db.Comment;
 import com.ntu.qidong.digitaltwin.db.Post;
 import com.ntu.qidong.digitaltwin.db.User;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -27,13 +36,18 @@ import java.util.Locale;
 public class ForumFragment extends Fragment {
 
     private EditText etTitle, etContent, etComment;
-    private Button btnPost, btnNewPost, btnCancelPost, btnComment, btnBack;
+    private Button btnPost, btnCancelPost, btnComment;
+    private ImageButton btnBack, btnNewPost;
     private LinearLayout postsContainer, postDetailLayout, postDialogLayout, commentsContainer;
-    private TextView tvWelcome, tvPostCount, tvDetailTitle, tvDetailAuthor, tvDetailTime, tvDetailContent, tvDetailLikes, tvDetailComments;
+    private ScrollView forumContentView;
+    private LinearLayout loginRequiredView;
+    private TextView tvWelcome, tvDetailTitle, tvDetailAuthor, tvDetailTime, tvDetailContent, tvDetailLikes, tvDetailComments;
+    private TextView tagAll, tagHot, tagNew, tagMy;
 
     private SharedPreferences userPrefs;
     private AppDatabase db;
     private long currentUserId = -1;
+    private boolean isAdmin = false;  // 管理员标识
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -41,8 +55,7 @@ public class ForumFragment extends Fragment {
 
         initViews(view);
         initData();
-        loadPosts();
-        updateWelcome();
+        checkLoginStatus(view);
 
         return view;
     }
@@ -61,10 +74,23 @@ public class ForumFragment extends Fragment {
         postDetailLayout = view.findViewById(R.id.post_detail_layout);
         postDialogLayout = view.findViewById(R.id.post_dialog_layout);
         commentsContainer = view.findViewById(R.id.comments_container);
+        forumContentView = view.findViewById(R.id.forum_content_view);
+        loginRequiredView = view.findViewById(R.id.login_required_view);
 
         tvWelcome = view.findViewById(R.id.tv_welcome);
-        tvPostCount = view.findViewById(R.id.tv_post_count);
         tvDetailTitle = view.findViewById(R.id.tv_detail_title);
+
+        // 初始化标签
+        tagAll = view.findViewById(R.id.tag_all);
+        tagHot = view.findViewById(R.id.tag_hot);
+        tagNew = view.findViewById(R.id.tag_new);
+        tagMy = view.findViewById(R.id.tag_my);
+
+        // 标签点击事件（带动画）
+        tagAll.setOnClickListener(v -> selectTag(tagAll));
+        tagHot.setOnClickListener(v -> selectTag(tagHot));
+        tagNew.setOnClickListener(v -> selectTag(tagNew));
+        tagMy.setOnClickListener(v -> selectTag(tagMy));
         tvDetailAuthor = view.findViewById(R.id.tv_detail_author);
         tvDetailTime = view.findViewById(R.id.tv_detail_time);
         tvDetailContent = view.findViewById(R.id.tv_detail_content);
@@ -82,30 +108,176 @@ public class ForumFragment extends Fragment {
         userPrefs = getActivity().getSharedPreferences("user_prefs", getActivity().MODE_PRIVATE);
         db = AppDatabase.getInstance(getActivity());
         currentUserId = userPrefs.getLong("current_user_id", -1);
+
+        // 检查是否为管理员
+        if (currentUserId > 0) {
+            User currentUser = db.userDao().getUserById(currentUserId);
+            if (currentUser != null && currentUser.isAdmin()) {
+                isAdmin = true;
+            }
+        }
+
+        // 初始化管理员账号（如果不存在）
+        initAdminAccount();
+    }
+
+    /**
+     * 检查登录状态并切换界面
+     */
+    private void checkLoginStatus(View view) {
+        ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+
+        if (!serverApi.isLoggedIn()) {
+            // 未登录（无JWT Token），显示登录提示界面
+            showLoginRequiredView(view);
+        } else {
+            // 已登录（有Token），显示论坛内容
+            showForumView(view);
+        }
+    }
+
+    /**
+     * 显示需要登录的提示界面
+     */
+    private void showLoginRequiredView(View view) {
+        loginRequiredView.setVisibility(View.VISIBLE);
+        forumContentView.setVisibility(View.GONE);
+
+        // 设置"去登录"按钮点击事件
+        TextView btnGoToLogin = view.findViewById(R.id.btn_go_to_login_forum);
+        btnGoToLogin.setOnClickListener(v -> {
+            // 跳转到个人中心页面（通过MainContainerActivity）
+            if (getActivity() instanceof MainContainerActivity) {
+                ((MainContainerActivity) getActivity()).showFragment(
+                        ((MainContainerActivity) getActivity()).getProfileFragment()
+                );
+                Toast.makeText(getContext(), "请先登录后再使用论坛", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    /**
+     * 显示论坛主界面
+     */
+    private void showForumView(View view) {
+        loginRequiredView.setVisibility(View.GONE);
+        forumContentView.setVisibility(View.VISIBLE);
+
+        loadPosts();
+        updateWelcome();
+    }
+
+    /**
+     * 初始化管理员账号
+     * 账号: admin / 123456
+     */
+    private void initAdminAccount() {
+        User existingAdmin = db.userDao().getUserByUsername("admin");
+        if (existingAdmin == null) {
+            User admin = new User("admin", "123456", "管理员", true);
+            db.userDao().insert(admin);
+        }
+    }
+
+    /**
+     * 确保用户在本地数据库中存在（处理远程登录用户）
+     * 如果远程登录的用户在本地不存在，则创建一个本地记录
+     */
+    private void ensureUserExistsLocally(long userId) {
+        if (userId <= 0) return;
+
+        User localUser = db.userDao().getUserById(userId);
+        if (localUser == null) {
+            // 用户不存在于本地数据库，尝试从缓存创建
+            String cachedJson = userPrefs.getString("cached_account_json", null);
+            if (cachedJson != null && !cachedJson.isEmpty()) {
+                try {
+                    org.json.JSONObject json = new org.json.JSONObject(cachedJson);
+                    String userName = json.optString("userName", "用户" + userId);
+                    String displayName = json.optString("name");
+                    if (displayName == null || displayName.isEmpty()) {
+                        displayName = userName;
+                    }
+
+                    // 创建本地用户记录
+                    User newUser = new User(userName, "", displayName, false);
+                    // 注意：这里需要手动设置userId，但Room的自增主键通常不允许
+                    // 所以我们使用insert方法让系统分配新的ID，然后更新引用
+                    long newId = db.userDao().insert(newUser);
+
+                    // 更新当前用户ID为新生成的ID
+                    if (newId > 0) {
+                        userPrefs.edit().putLong("current_user_id", newId).apply();
+                        currentUserId = newId;
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    // 如果解析失败，创建一个默认用户
+                    User defaultUser = new User("user_" + userId, "", "用户" + userId, false);
+                    long newId = db.userDao().insert(defaultUser);
+                    if (newId > 0) {
+                        userPrefs.edit().putLong("current_user_id", newId).apply();
+                        currentUserId = newId;
+                    }
+                }
+            }
+        }
     }
 
     private void updateWelcome() {
         if (currentUserId > 0) {
             User user = db.userDao().getUserById(currentUserId);
             if (user != null) {
-                tvWelcome.setText("Welcome back, " + user.getNickname() + "!");
+                if (user.isAdmin()) {
+                    tvWelcome.setText("管理员模式 · " + user.getNickname());
+                } else {
+                    tvWelcome.setText("欢迎回来, " + user.getNickname() + "!");
+                }
             }
         } else {
-            tvWelcome.setText("Welcome to Digital Twin Forum!");
+            tvWelcome.setText("分享你的校园生活");
         }
     }
 
     private void showPostDialog() {
         postDialogLayout.setVisibility(View.VISIBLE);
+        Animation slideUp = AnimationUtils.loadAnimation(getActivity(), R.anim.slide_up);
+        postDialogLayout.startAnimation(slideUp);
+
+        // 加号按钮脉冲动画
+        if (btnNewPost != null) {
+            Animation pulse = AnimationUtils.loadAnimation(getActivity(), R.anim.pulse);
+            btnNewPost.startAnimation(pulse);
+        }
     }
 
     private void hidePostDialog() {
-        postDialogLayout.setVisibility(View.GONE);
-        etTitle.setText("");
-        etContent.setText("");
+        Animation slideDown = AnimationUtils.loadAnimation(getActivity(), R.anim.slide_down);
+        slideDown.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                postDialogLayout.setVisibility(View.GONE);
+                etTitle.setText("");
+                etContent.setText("");
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+        postDialogLayout.startAnimation(slideDown);
     }
 
     private void publishPost() {
+        // 检查登录状态（使用JWT Token）
+        ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+        if (!serverApi.isLoggedIn()) {
+            Toast.makeText(getActivity(), "请先登录后再发帖", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         String title = etTitle.getText().toString().trim();
         String content = etContent.getText().toString().trim();
 
@@ -118,87 +290,236 @@ public class ForumFragment extends Fragment {
             return;
         }
 
-        Post post = new Post(title, content, currentUserId);
-        db.postDao().insert(post);
+        // 显示加载提示
+        Toast.makeText(getActivity(), "正在发布...", Toast.LENGTH_SHORT).show();
 
-        hidePostDialog();
-        loadPosts();
-        updateWelcome();
+        // 调用远程API发布帖子
+        serverApi.createPost(title, content, (success, message, postData) -> {
+            if (getActivity() == null || getActivity().isFinishing()) return;
 
-        Toast.makeText(getActivity(), "发布成功！", Toast.LENGTH_SHORT).show();
+            getActivity().runOnUiThread(() -> {
+                if (success) {
+                    hidePostDialog();
+                    loadPosts();  // 重新从服务器加载帖子列表
+                    updateWelcome();
+                    Toast.makeText(getActivity(), message != null ? message : "发布成功！", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(getActivity(), message != null ? message : "发布失败", Toast.LENGTH_LONG).show();
+                }
+            });
+        });
     }
 
     private void loadPosts() {
+        // 优先从远程服务器加载帖子
+        ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+        
+        // 显示加载状态
+        postsContainer.removeAllViews();
+        TextView loadingText = new TextView(getActivity());
+        loadingText.setText("正在加载帖子...");
+        loadingText.setTextColor(0xFF6B7280);
+        loadingText.setTextSize(14);
+        loadingText.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 50, 0, 0);
+        loadingText.setLayoutParams(lp);
+        postsContainer.addView(loadingText);
+
+        serverApi.getPosts((success, message, postsArray) -> {
+            if (getActivity() == null || getActivity().isFinishing()) return;
+
+            getActivity().runOnUiThread(() -> {
+                if (success && postsArray != null) {
+                    displayPostsFromJson(postsArray);
+                } else {
+                    // 远程加载失败，显示错误或空列表
+                    postsContainer.removeAllViews();
+                    TextView errorText = new TextView(getActivity());
+                    errorText.setText(message != null ? message : "无法加载帖子");
+                    errorText.setTextColor(0xFF9CA3AF);
+                    errorText.setTextSize(14);
+                    errorText.setGravity(android.view.Gravity.CENTER);
+                    LinearLayout.LayoutParams errLp = new LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT);
+                    errLp.setMargins(0, 50, 0, 0);
+                    errorText.setLayoutParams(errLp);
+                    postsContainer.addView(errorText);
+                    
+                    Log.w("ForumFragment", "加载帖子失败: " + message);
+                }
+            });
+        });
+    }
+
+    /**
+     * 从JSON数组渲染帖子列表
+     */
+    private void displayPostsFromJson(JSONArray postsArray) {
         postsContainer.removeAllViews();
 
-        List<Post> posts = db.postDao().getAllPosts();
-        tvPostCount.setText(posts.size() + " 篇帖子");
-
-        for (int i = 0; i < posts.size(); i++) {
-            Post post = posts.get(i);
-            User author = db.userDao().getUserById(post.getAuthorId());
-            String authorName = author != null ? author.getNickname() : "匿名用户";
-
-            LinearLayout postItem = new LinearLayout(getActivity());
-            postItem.setOrientation(LinearLayout.VERTICAL);
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+        if (postsArray.length() == 0) {
+            TextView emptyText = new TextView(getActivity());
+            emptyText.setText("暂无帖子，快来发布第一条吧！");
+            emptyText.setTextColor(0xFF9CA3AF);
+            emptyText.setTextSize(15);
+            emptyText.setGravity(android.view.Gravity.CENTER);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT);
-            params.setMargins(0, 0, 0, 16);
-            postItem.setLayoutParams(params);
-            postItem.setBackgroundResource(R.drawable.card_background);
-            postItem.setPadding(24, 20, 24, 20);
-            postItem.setClickable(true);
-            postItem.setOnClickListener(v -> showPostDetail(post));
+            lp.setMargins(0, 80, 0, 0);
+            emptyText.setLayoutParams(lp);
+            postsContainer.addView(emptyText);
+            return;
+        }
 
-            TextView titleText = new TextView(getActivity());
-            titleText.setText(post.getTitle());
-            titleText.setTextColor(0xFF1F2937);
-            titleText.setTextSize(18);
-            titleText.setTypeface(null, android.graphics.Typeface.BOLD);
-            postItem.addView(titleText);
+        try {
+            for (int i = 0; i < postsArray.length(); i++) {
+                JSONObject postObj = postsArray.getJSONObject(i);
 
-            TextView metaText = new TextView(getActivity());
-            metaText.setText(authorName + " · " + formatTime(post.getCreatedAt()));
-            metaText.setTextColor(0xFF6B7280);
-            metaText.setTextSize(14);
-            metaText.setPadding(0, 8, 0, 0);
-            postItem.addView(metaText);
-
-            if (post.getContent() != null && !post.getContent().isEmpty()) {
-                TextView contentPreview = new TextView(getActivity());
-                String content = post.getContent();
-                if (content.length() > 100) {
-                    content = content.substring(0, 100) + "...";
+                String title = postObj.optString("title", "无标题");
+                String content = postObj.optString("content", "");
+                
+                // 获取作者信息
+                String authorName = "匿名用户";
+                if (postObj.has("author") && !postObj.isNull("author")) {
+                    JSONObject author = postObj.getJSONObject("author");
+                    authorName = author.optString("nickname", author.optString("userName", "匿名用户"));
+                } else if (postObj.has("authorName")) {
+                    authorName = postObj.optString("authorName", "匿名用户");
                 }
-                contentPreview.setText(content);
-                contentPreview.setTextColor(0xFF4B5563);
-                contentPreview.setTextSize(15);
-                contentPreview.setPadding(0, 10, 0, 0);
-                contentPreview.setLineSpacing(4f, 1.3f);
-                postItem.addView(contentPreview);
+                
+                // 获取时间
+                String timeStr = "";
+                if (postObj.has("createdAt")) {
+                    timeStr = formatTime(parseTime(postObj.getString("createdAt")));
+                } else if (postObj.has("createdTime")) {
+                    timeStr = formatTime(parseTime(postObj.getString("createdTime")));
+                }
+
+                // 获取统计数据
+                int likeCount = postObj.optInt("likeCount", 0);
+                int commentCount = postObj.optInt("commentCount", 0);
+                long postId = postObj.optLong("id", postObj.optLong("postId", -1));
+
+                // 创建帖子卡片UI（与之前保持一致）
+                LinearLayout postItem = createPostCard(postId, title, content, authorName, timeStr, likeCount, commentCount);
+                postsContainer.addView(postItem);
+            }
+        } catch (Exception e) {
+            Log.e("ForumFragment", "解析帖子数据失败: " + e.getMessage());
+            Toast.makeText(getActivity(), "解析帖子数据失败", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 创建单个帖子卡片视图
+     */
+    private LinearLayout createPostCard(long postId, String title, String content, 
+                                        String authorName, String timeStr, 
+                                        int likeCount, int commentCount) {
+        LinearLayout postItem = new LinearLayout(getActivity());
+        postItem.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMargins(0, 0, 0, 16);
+        postItem.setLayoutParams(params);
+        postItem.setBackgroundResource(R.drawable.card_background);
+        postItem.setPadding(24, 20, 24, 20);
+        postItem.setClickable(true);
+        final long finalPostId = postId;
+        postItem.setOnClickListener(v -> {
+            v.animate()
+                    .scaleX(0.97f)
+                    .scaleY(0.97f)
+                    .setDuration(100)
+                    .withEndAction(() -> {
+                        v.setScaleX(1f);
+                        v.setScaleY(1f);
+                        // TODO: 可以扩展为从服务器获取帖子详情
+                        Toast.makeText(getActivity(), "帖子ID: " + finalPostId, Toast.LENGTH_SHORT).show();
+                    })
+                    .start();
+        });
+
+        TextView titleText = new TextView(getActivity());
+        titleText.setText(title);
+        titleText.setTextColor(0xFF1F2937);
+        titleText.setTextSize(18);
+        titleText.setTypeface(null, android.graphics.Typeface.BOLD);
+        postItem.addView(titleText);
+
+        TextView metaText = new TextView(getActivity());
+        metaText.setText(authorName + " · " + timeStr);
+        metaText.setTextColor(0xFF6B7280);
+        metaText.setTextSize(14);
+        metaText.setPadding(0, 8, 0, 0);
+        postItem.addView(metaText);
+
+        if (content != null && !content.isEmpty()) {
+            TextView contentPreview = new TextView(getActivity());
+            String preview = content;
+            if (preview.length() > 100) {
+                preview = preview.substring(0, 100) + "...";
+            }
+            contentPreview.setText(preview);
+            contentPreview.setTextColor(0xFF4B5563);
+            contentPreview.setTextSize(15);
+            contentPreview.setPadding(0, 10, 0, 0);
+            contentPreview.setLineSpacing(4f, 1.3f);
+            postItem.addView(contentPreview);
+        }
+
+        LinearLayout statsRow = new LinearLayout(getActivity());
+        statsRow.setOrientation(LinearLayout.HORIZONTAL);
+        statsRow.setPadding(0, 12, 0, 0);
+
+        TextView likesText = new TextView(getActivity());
+        likesText.setText(String.valueOf(likeCount));
+        likesText.setTextColor(0xFF9CA3AF);
+        likesText.setTextSize(13);
+        statsRow.addView(likesText);
+
+        TextView commentsText = new TextView(getActivity());
+        commentsText.setText(String.valueOf(commentCount));
+        commentsText.setTextColor(0xFF9CA3AF);
+        commentsText.setTextSize(13);
+        commentsText.setPadding(20, 0, 0, 0);
+        statsRow.addView(commentsText);
+
+            // 管理员删除按钮
+            if (isAdmin) {
+                View spacer = new View(getActivity());
+                LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(
+                        0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
+                spacer.setLayoutParams(spacerParams);
+                statsRow.addView(spacer);
+
+                ImageButton deleteBtn = new ImageButton(getActivity());
+                deleteBtn.setImageResource(R.drawable.ic_delete);
+                deleteBtn.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+                deleteBtn.setColorFilter(0xFFEF4444);  // 红色
+                deleteBtn.setPadding(16, 8, 8, 8);
+                final long postIdToDelete = finalPostId;
+                deleteBtn.setOnClickListener(v -> {
+                    new android.app.AlertDialog.Builder(getActivity())
+                            .setTitle("确认删除")
+                            .setMessage("确定要删除该帖子吗？")
+                            .setPositiveButton("删除", (dialog, which) -> {
+                                Toast.makeText(getActivity(), "删除功能开发中", Toast.LENGTH_SHORT).show();
+                            })
+                            .setNegativeButton("取消", null)
+                            .show();
+                });
+                statsRow.addView(deleteBtn);
             }
 
-            LinearLayout statsRow = new LinearLayout(getActivity());
-            statsRow.setOrientation(LinearLayout.HORIZONTAL);
-            statsRow.setPadding(0, 12, 0, 0);
-
-            TextView likesText = new TextView(getActivity());
-            likesText.setText("❤️ " + post.getLikeCount());
-            likesText.setTextColor(0xFF9CA3AF);
-            likesText.setTextSize(13);
-            statsRow.addView(likesText);
-
-            TextView commentsText = new TextView(getActivity());
-            commentsText.setText("💬 " + post.getCommentCount());
-            commentsText.setTextColor(0xFF9CA3AF);
-            commentsText.setTextSize(13);
-            commentsText.setPadding(20, 0, 0, 0);
-            statsRow.addView(commentsText);
-
             postItem.addView(statsRow);
-            postsContainer.addView(postItem);
-        }
+            return postItem;
     }
 
     private void showPostDetail(Post post) {
@@ -215,6 +536,8 @@ public class ForumFragment extends Fragment {
         loadComments(post.getId());
 
         postDetailLayout.setVisibility(View.VISIBLE);
+        Animation slideInRight = AnimationUtils.loadAnimation(getActivity(), R.anim.slide_in_right);
+        postDetailLayout.startAnimation(slideInRight);
     }
 
     private void loadComments(int postId) {
@@ -263,6 +586,26 @@ public class ForumFragment extends Fragment {
         }
     }
 
+    /**
+     * 删除帖子（仅管理员）
+     */
+    private void deletePost(int postId) {
+        // 先删除该帖子的所有评论
+        List<Comment> comments = db.commentDao().getCommentsByPostId(postId);
+        for (Comment comment : comments) {
+            db.commentDao().delete(comment.getId());
+        }
+
+        // 删除帖子
+        db.postDao().deletePost(postId);
+
+        // 刷新列表
+        loadPosts();
+        updateWelcome();
+
+        Toast.makeText(getActivity(), "帖子已删除", Toast.LENGTH_SHORT).show();
+    }
+
     private void addComment() {
         String content = etComment.getText().toString().trim();
         if (content.isEmpty()) {
@@ -293,13 +636,88 @@ public class ForumFragment extends Fragment {
         return 0;
     }
 
+    /**
+     * 解析时间字符串（支持多种格式）
+     */
+    private long parseTime(String timeStr) {
+        if (timeStr == null || timeStr.isEmpty()) return System.currentTimeMillis();
+        
+        try {
+            // 尝试ISO 8601格式: 2026-06-11T06:54:44.8697031Z
+            SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSS'Z'", Locale.US);
+            Date date = isoFormat.parse(timeStr);
+            return date != null ? date.getTime() : System.currentTimeMillis();
+        } catch (Exception e) {
+            try {
+                // 尝试标准ISO格式: 2026-06-11T06:54:44Z
+                SimpleDateFormat stdIso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
+                Date date = stdIso.parse(timeStr);
+                return date != null ? date.getTime() : System.currentTimeMillis();
+            } catch (Exception e2) {
+                try {
+                    // 尝试普通日期格式
+                    SimpleDateFormat simple = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA);
+                    Date date = simple.parse(timeStr);
+                    return date != null ? date.getTime() : System.currentTimeMillis();
+                } catch (Exception e3) {
+                    return System.currentTimeMillis();
+                }
+            }
+        }
+    }
+
     private String formatTime(long timestamp) {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA);
         return sdf.format(new Date(timestamp));
     }
 
     public void backToList() {
-        postDetailLayout.setVisibility(View.GONE);
-        loadPosts();
+        Animation slideOutRight = AnimationUtils.loadAnimation(getActivity(), R.anim.slide_out_right);
+        slideOutRight.setAnimationListener(new Animation.AnimationListener() {
+            @Override
+            public void onAnimationStart(Animation animation) {}
+
+            @Override
+            public void onAnimationEnd(Animation animation) {
+                postDetailLayout.setVisibility(View.GONE);
+                loadPosts();
+            }
+
+            @Override
+            public void onAnimationRepeat(Animation animation) {}
+        });
+        postDetailLayout.startAnimation(slideOutRight);
+    }
+
+    private void selectTag(TextView selectedTag) {
+        // 重置所有标签样式
+        TextView[] tags = {tagAll, tagHot, tagNew, tagMy};
+        for (TextView tag : tags) {
+            if (tag == selectedTag) continue;
+
+            // 未选中动画
+            tag.animate()
+                    .scaleX(0.95f)
+                    .setDuration(100)
+                    .withEndAction(() -> {
+                        tag.setBackgroundResource(R.drawable.tag_unselected_modern);
+                        tag.setTextColor(getResources().getColor(R.color.text_secondary));
+                        tag.animate().scaleX(1f).setDuration(100).start();
+                    })
+                    .start();
+        }
+
+        // 选中标签动画
+        selectedTag.animate()
+                .scaleX(1.05f)
+                .setDuration(100)
+                .withEndAction(() -> {
+                    selectedTag.setBackgroundResource(R.drawable.tag_selected);
+                    selectedTag.setTextColor(getResources().getColor(android.R.color.white));
+                    selectedTag.animate().scaleX(1f).setDuration(100).start();
+                })
+                .start();
+
+        // TODO: 根据标签筛选帖子（功能待实现）
     }
 }
