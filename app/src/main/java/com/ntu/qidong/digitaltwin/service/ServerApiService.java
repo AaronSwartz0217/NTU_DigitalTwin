@@ -769,6 +769,13 @@ public class ServerApiService {
     }
 
     /**
+     * 帖子详情回调（返回单个帖子）
+     */
+    public interface PostDetailCallback {
+        void onResult(boolean success, String message, JSONObject postData);
+    }
+
+    /**
      * 单个操作回调（发帖等）
      */
     public interface PostOperationCallback {
@@ -858,9 +865,25 @@ public class ServerApiService {
     /**
      * 获取帖子列表
      * GET /api/posts (公开接口，无需认证)
+     * 支持分页和排序参数
      */
     public void getPosts(PostsCallback callback) {
-        String url = getServerUrl() + "/api/posts";
+        getPosts(1, 10, "time", null, callback);
+    }
+
+    /**
+     * 获取帖子列表（带参数）
+     * GET /api/posts?pageIndex=1&pageSize=10&sortBy=hot&tag=xxx
+     */
+    public void getPosts(int pageIndex, int pageSize, String sortBy, String tag, PostsCallback callback) {
+        String url = getServerUrl() + "/api/posts?" +
+                "pageIndex=" + pageIndex +
+                "&pageSize=" + pageSize +
+                "&sortBy=" + (sortBy != null ? sortBy : "time");
+        
+        if (tag != null && !tag.isEmpty()) {
+            url += "&tag=" + encodeParam(tag);
+        }
 
         Request request = new Request.Builder()
                 .url(url)
@@ -878,7 +901,7 @@ public class ServerApiService {
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "获取帖子列表响应 [HTTP " + response.code() + "]");
+                    Log.d(TAG, "获取帖子列表响应 [HTTP " + response.code() + "]: " + responseBody);
 
                     if (response.isSuccessful()) {
                         JSONObject json = new JSONObject(responseBody);
@@ -911,6 +934,450 @@ public class ServerApiService {
                 } catch (Exception e) {
                     Log.e(TAG, "解析帖子列表失败: " + e.getMessage());
                     callback.onResult(false, "解析响应失败", null);
+                }
+            }
+        });
+    }
+
+    /**
+     * 获取帖子详情
+     * GET /api/posts/{postId} (公开接口，无需认证)
+     */
+    public void getPostDetail(long postId, PostDetailCallback callback) {
+        String url = getServerUrl() + "/api/posts/" + postId;
+
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "获取帖子详情失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage(), null);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "获取帖子详情响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        JSONObject postData = null;
+
+                        // 支持多种格式
+                        if (json.has("data")) {
+                            Object data = json.get("data");
+                            if (data instanceof JSONObject) {
+                                postData = (JSONObject) data;
+                            }
+                        } else {
+                            postData = json;
+                        }
+
+                        callback.onResult(true, "获取成功", postData);
+                    } else {
+                        String errorMsg = "获取失败";
+                        try {
+                            JSONObject errorJson = new JSONObject(responseBody);
+                            errorMsg = errorJson.optString("message", errorJson.optString("msg", "获取失败"));
+                        } catch (Exception ignored) {}
+                        callback.onResult(false, errorMsg, null);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析帖子详情失败: " + e.getMessage());
+                    callback.onResult(false, "解析响应失败", null);
+                }
+            }
+        });
+    }
+
+    /**
+     * 点赞帖子
+     * POST /api/posts/{postId}/like (需要认证)
+     */
+    public void likePost(long postId, SimpleCallback callback) {
+        String url = getServerUrl() + "/api/posts/" + postId + "/like";
+
+        Request request = createAuthenticatedRequestBuilder(url)
+                .post(RequestBody.create("", JSON_MEDIA_TYPE))
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "点赞失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "点赞响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        String message = json.optString("message", json.optString("msg", "操作成功"));
+                        callback.onResult(true, message);
+                    } else {
+                        String errorMsg = "点赞失败";
+                        try {
+                            JSONObject errorJson = new JSONObject(responseBody);
+                            errorMsg = errorJson.optString("message", errorJson.optString("msg", "点赞失败"));
+                        } catch (Exception ignored) {}
+                        
+                        if (response.code() == 401) {
+                            errorMsg = "请先登录";
+                        }
+                        callback.onResult(false, errorMsg);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析点赞响应失败: " + e.getMessage());
+                    callback.onResult(false, "服务器响应异常");
+                }
+            }
+        });
+    }
+
+    /**
+     * 取消点赞
+     * DELETE /api/posts/{postId}/like (需要认证)
+     */
+    public void unlikePost(long postId, SimpleCallback callback) {
+        String url = getServerUrl() + "/api/posts/" + postId + "/like";
+
+        Request request = createAuthenticatedRequestBuilder(url)
+                .delete()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "取消点赞失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "取消点赞响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        String message = json.optString("message", json.optString("msg", "操作成功"));
+                        callback.onResult(true, message);
+                    } else {
+                        String errorMsg = "取消点赞失败";
+                        try {
+                            JSONObject errorJson = new JSONObject(responseBody);
+                            errorMsg = errorJson.optString("message", errorJson.optString("msg", "取消点赞失败"));
+                        } catch (Exception ignored) {}
+                        
+                        if (response.code() == 401) {
+                            errorMsg = "请先登录";
+                        }
+                        callback.onResult(false, errorMsg);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析取消点赞响应失败: " + e.getMessage());
+                    callback.onResult(false, "服务器响应异常");
+                }
+            }
+        });
+    }
+
+    /**
+     * 收藏帖子
+     * POST /api/posts/{postId}/favorite (需要认证)
+     */
+    public void favoritePost(long postId, SimpleCallback callback) {
+        String url = getServerUrl() + "/api/posts/" + postId + "/favorite";
+
+        Request request = createAuthenticatedRequestBuilder(url)
+                .post(RequestBody.create("", JSON_MEDIA_TYPE))
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "收藏失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "收藏响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        String message = json.optString("message", json.optString("msg", "收藏成功"));
+                        callback.onResult(true, message);
+                    } else {
+                        String errorMsg = "收藏失败";
+                        try {
+                            JSONObject errorJson = new JSONObject(responseBody);
+                            errorMsg = errorJson.optString("message", errorJson.optString("msg", "收藏失败"));
+                        } catch (Exception ignored) {}
+                        
+                        if (response.code() == 401) {
+                            errorMsg = "请先登录";
+                        }
+                        callback.onResult(false, errorMsg);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析收藏响应失败: " + e.getMessage());
+                    callback.onResult(false, "服务器响应异常");
+                }
+            }
+        });
+    }
+
+    /**
+     * 取消收藏
+     * DELETE /api/posts/{postId}/favorite (需要认证)
+     */
+    public void unfavoritePost(long postId, SimpleCallback callback) {
+        String url = getServerUrl() + "/api/posts/" + postId + "/favorite";
+
+        Request request = createAuthenticatedRequestBuilder(url)
+                .delete()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "取消收藏失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "取消收藏响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        String message = json.optString("message", json.optString("msg", "取消收藏成功"));
+                        callback.onResult(true, message);
+                    } else {
+                        String errorMsg = "取消收藏失败";
+                        try {
+                            JSONObject errorJson = new JSONObject(responseBody);
+                            errorMsg = errorJson.optString("message", errorJson.optString("msg", "取消收藏失败"));
+                        } catch (Exception ignored) {}
+                        
+                        if (response.code() == 401) {
+                            errorMsg = "请先登录";
+                        }
+                        callback.onResult(false, errorMsg);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析取消收藏响应失败: " + e.getMessage());
+                    callback.onResult(false, "服务器响应异常");
+                }
+            }
+        });
+    }
+
+    // ==================== 评论 API ====================
+
+    /**
+     * 评论数据回调
+     */
+    public interface CommentsCallback {
+        void onResult(boolean success, String message, JSONArray comments);
+    }
+
+    /**
+     * 获取帖子评论列表
+     * GET /api/posts/{postId}/comments (公开接口，无需认证)
+     */
+    public void getComments(long postId, CommentsCallback callback) {
+        getComments(postId, 1, 20, callback);
+    }
+
+    /**
+     * 获取帖子评论列表（带分页）
+     * GET /api/posts/{postId}/comments?pageIndex=1&pageSize=20
+     */
+    public void getComments(long postId, int pageIndex, int pageSize, CommentsCallback callback) {
+        String url = getServerUrl() + "/api/posts/" + postId + "/comments?" +
+                "pageIndex=" + pageIndex +
+                "&pageSize=" + pageSize;
+
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "获取评论失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage(), null);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "获取评论响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        JSONArray commentsArray = null;
+
+                        if (json.has("data")) {
+                            Object data = json.get("data");
+                            if (data instanceof JSONArray) {
+                                commentsArray = (JSONArray) data;
+                            } else if (data instanceof JSONObject && ((JSONObject) data).has("items")) {
+                                commentsArray = ((JSONObject) data).getJSONArray("items");
+                            }
+                        } else if (json.has("comments")) {
+                            commentsArray = json.getJSONArray("comments");
+                        }
+
+                        if (commentsArray != null) {
+                            callback.onResult(true, "获取成功", commentsArray);
+                        } else {
+                            callback.onResult(true, "暂无评论", new JSONArray());
+                        }
+                    } else {
+                        callback.onResult(false, "服务器错误 (HTTP " + response.code() + ")", null);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析评论失败: " + e.getMessage());
+                    callback.onResult(false, "解析响应失败", null);
+                }
+            }
+        });
+    }
+
+    /**
+     * 发表评论
+     * POST /api/posts/{postId}/comments (需要认证)
+     */
+    public void createComment(long postId, String content, Long parentId, PostOperationCallback callback) {
+        String url = getServerUrl() + "/api/posts/" + postId + "/comments";
+
+        try {
+            JSONObject jsonBody = new JSONObject();
+            jsonBody.put("content", content);
+            if (parentId != null && parentId > 0) {
+                jsonBody.put("parentId", parentId);
+            }
+
+            RequestBody body = RequestBody.create(jsonBody.toString(), JSON_MEDIA_TYPE);
+            Request request = createAuthenticatedRequestBuilder(url)
+                    .post(body)
+                    .build();
+
+            client.newCall(request).enqueue(new Callback() {
+                @Override
+                public void onFailure(Call call, IOException e) {
+                    Log.e(TAG, "发表评论失败: " + e.getMessage());
+                    callback.onResult(false, "网络错误: " + e.getMessage(), null);
+                }
+
+                @Override
+                public void onResponse(Call call, Response response) throws IOException {
+                    try {
+                        String responseBody = response.body().string();
+                        Log.d(TAG, "发表评论响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                        if (response.isSuccessful()) {
+                            JSONObject json = new JSONObject(responseBody);
+                            JSONObject commentData = null;
+                            
+                            if (json.has("data")) {
+                                Object data = json.get("data");
+                                if (data instanceof JSONObject) {
+                                    commentData = (JSONObject) data;
+                                }
+                            } else {
+                                commentData = json;
+                            }
+                            
+                            String message = json.optString("message", json.optString("msg", "评论成功"));
+                            callback.onResult(true, message, commentData);
+                        } else {
+                            String errorMsg = "评论失败";
+                            try {
+                                JSONObject errorJson = new JSONObject(responseBody);
+                                errorMsg = errorJson.optString("message", errorJson.optString("msg", "评论失败"));
+                            } catch (Exception ignored) {}
+                            
+                            if (response.code() == 401) {
+                                errorMsg = "请先登录";
+                            }
+                            callback.onResult(false, errorMsg, null);
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "解析评论响应失败: " + e.getMessage());
+                        callback.onResult(false, "服务器响应异常", null);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "构建评论请求失败: " + e.getMessage());
+            callback.onResult(false, "构建请求失败", null);
+        }
+    }
+
+    /**
+     * 删除评论
+     * DELETE /api/comments/{commentId} (需要认证)
+     */
+    public void deleteComment(long commentId, SimpleCallback callback) {
+        String url = getServerUrl() + "/api/comments/" + commentId;
+
+        Request request = createAuthenticatedRequestBuilder(url)
+                .delete()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "删除评论失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "删除评论响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        String message = json.optString("message", json.optString("msg", "删除成功"));
+                        callback.onResult(true, message);
+                    } else {
+                        String errorMsg = "删除失败";
+                        try {
+                            JSONObject errorJson = new JSONObject(responseBody);
+                            errorMsg = errorJson.optString("message", errorJson.optString("msg", "删除失败"));
+                        } catch (Exception ignored) {}
+                        
+                        if (response.code() == 401) {
+                            errorMsg = "请先登录";
+                        } else if (response.code() == 403) {
+                            errorMsg = "没有权限删除此评论";
+                        }
+                        callback.onResult(false, errorMsg);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析删除评论响应失败: " + e.getMessage());
+                    callback.onResult(false, "服务器响应异常");
                 }
             }
         });
