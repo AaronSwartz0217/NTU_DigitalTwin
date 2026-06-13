@@ -23,6 +23,7 @@ public class AccountProfile {
 
     // 状态标识
     private boolean hasProfile = false;
+    private String role = "user";  // user / admin
 
     // 构造函数
     public AccountProfile() {}
@@ -72,6 +73,10 @@ public class AccountProfile {
 
     public boolean isHasProfile() { return hasProfile; }
     public void setHasProfile(boolean hasProfile) { this.hasProfile = hasProfile; }
+
+    public String getRole() { return role != null ? role : "user"; }
+    public void setRole(String role) { this.role = role; }
+    public boolean isAdmin() { return "admin".equals(this.getRole()); }
 
     /**
      * 获取性别显示文本

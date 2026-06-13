@@ -22,13 +22,13 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
-        <!-- 好友统计（待后端实现后显示） -->
+        <!-- 好友统计 -->
         <TextView
             android:id="@+id/tv_friend_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="好友功能开发中..."
+            android:text="加载中..."
             android:textColor="#B3D4FF"
             android:textSize="14sp" />
 
@@ -126,30 +126,15 @@
                 android:alpha="0.1"
                 android:background="#64748B" />
 
-            <!-- ========== 好友分组：在线好友 ========== -->
+            <!-- 好友列表（从后端加载全部注册用户） -->
             <TextView
+                android:id="@+id/tv_friends_placeholder"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:paddingBottom="12dp"
-                android:paddingLeft="4dp"
-                android:text="在线好友 (0)"
-                android:textColor="#64748B"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <!-- 好友卡片会动态添加到这里 -->
-
-            <!-- ========== 好友分组：离线好友 ========== -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingBottom="12dp"
-                android:paddingLeft="4dp"
-                android:paddingTop="24dp"
-                android:text="离线好友 (0)"
+                android:padding="24dp"
+                android:text="登录后查看所有注册用户..."
                 android:textColor="#94A3B8"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+                android:textSize="14sp" />
 
         </LinearLayout>
 

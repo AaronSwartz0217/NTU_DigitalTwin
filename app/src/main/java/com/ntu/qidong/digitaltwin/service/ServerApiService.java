@@ -103,11 +103,138 @@ public class ServerApiService {
     }
 
     /**
+     * 保存RefreshToken（用于过期后换取新Token）
+     */
+    public void saveRefreshToken(String refreshToken) {
+        authPrefs.edit().putString("jwt_refresh_token", refreshToken).apply();
+        Log.d(TAG, "RefreshToken已保存");
+    }
+
+    /**
+     * 获取本地保存的RefreshToken
+     */
+    public String getRefreshToken() {
+        return authPrefs.getString("jwt_refresh_token", null);
+    }
+
+    /**
      * 清除Token（登出时调用）
      */
     public void clearAuthToken() {
-        authPrefs.edit().remove("jwt_token").apply();
+        authPrefs.edit()
+                .remove("jwt_token")
+                .remove("jwt_refresh_token")
+                .apply();
         Log.d(TAG, "JWT Token已清除");
+    }
+
+    // ==================== Token自动刷新 ====================
+
+    /** 是否正在刷新Token（防止并发刷新） */
+    private volatile boolean isRefreshing = false;
+
+    /**
+     * 使用RefreshToken换取新的AccessToken（同步阻塞调用，在401时触发）
+     * @return true=刷新成功，false=刷新失败需重新登录
+     */
+    public synchronized boolean refreshAccessTokenSync() {
+        if (isRefreshing) {
+            Log.w(TAG, "Token正在刷新中，跳过重复请求");
+            return false;
+        }
+
+        String refreshToken = getRefreshToken();
+        if (refreshToken == null || refreshToken.isEmpty()) {
+            Log.w(TAG, "没有RefreshToken，无法自动刷新");
+            return false;
+        }
+
+        isRefreshing = true;
+        try {
+            String url = getServerUrl() + "/api/auth/refresh";
+            JSONObject body = new JSONObject();
+            body.put("refreshToken", refreshToken);
+
+            Request request = new Request.Builder()
+                    .url(url)
+                    .post(RequestBody.create(
+                            body.toString(),
+                            MediaType.parse("application/json; charset=utf-8")))
+                    .build();
+
+            Log.d(TAG, "正在刷新AccessToken...");
+            Response response = client.newCall(request).execute();
+            String responseBody = response.body().string();
+
+            if (response.isSuccessful()) {
+                JSONObject json = new JSONObject(responseBody);
+                JSONObject dataObj = json.has("data") && !json.isNull("data")
+                        ? json.getJSONObject("data") : json;
+
+                String newAccessToken = dataObj.optString("accessToken", "");
+                String newRefreshToken = dataObj.optString("refreshToken", "");
+
+                if (!newAccessToken.isEmpty() && !"null".equals(newAccessToken)) {
+                    saveAuthToken(newAccessToken);
+                    if (!newRefreshToken.isEmpty() && !"null".equals(newRefreshToken)) {
+                        saveRefreshToken(newRefreshToken);
+                    }
+                    Log.d(TAG, "AccessToken刷新成功 (新Token长度: " + newAccessToken.length() + ")");
+                    return true;
+                }
+            } else if (response.code() == 401) {
+                Log.w(TAG, "RefreshToken也过期了，需要重新登录");
+            } else {
+                Log.e(TAG, "刷新Token失败: HTTP " + response.code() + " " + responseBody);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "刷新Token异常: " + e.getMessage());
+        } finally {
+            isRefreshing = false;
+        }
+        return false;
+    }
+
+    // ==================== 用户资料缓存 ====================
+
+    /**
+     * 缓存用户资料到本地（登录成功后调用）
+     * 供 WebSocket、ChatRoom 等模块获取当前用户信息
+     */
+    public void saveCachedUserProfile(AccountProfile profile) {
+        if (profile == null) return;
+        authPrefs.edit()
+                .putLong("cached_user_id", profile.getUserId())
+                .putString("cached_user_name", profile.getUserName())
+                .putString("cached_user_display_name", profile.getName())
+                .apply();
+        Log.d(TAG, "用户资料已缓存: id=" + profile.getUserId() + ", name=" + profile.getUserName());
+    }
+
+    /**
+     * 获取缓存的用户资料
+     * @return UserProfile 对象（可能为null，表示未缓存）
+     */
+    public UserProfile getCachedUserProfile() {
+        long userId = authPrefs.getLong("cached_user_id", -1);
+        if (userId <= 0) return null;
+
+        String userName = authPrefs.getString("cached_user_name", "");
+        String displayName = authPrefs.getString("cached_user_display_name", "");
+
+        return new UserProfile(userId,
+                !displayName.isEmpty() ? displayName : userName);
+    }
+
+    /**
+     * 清除缓存的用户资料（登出时调用）
+     */
+    public void clearCachedUserProfile() {
+        authPrefs.edit()
+                .remove("cached_user_id")
+                .remove("cached_user_name")
+                .remove("cached_user_display_name")
+                .apply();
     }
 
     /**
@@ -332,6 +459,16 @@ public class ServerApiService {
                 token = null;
             }
 
+            // 1.5 保存RefreshToken（用于过期后自动刷新）
+            String refreshToken = sourceData.optString("refreshToken", "");
+            if (refreshToken.isEmpty()) {
+                refreshToken = json.optString("refreshToken", "");
+            }
+            if (!refreshToken.isEmpty() && !"null".equals(refreshToken)) {
+                saveRefreshToken(refreshToken);
+                Log.d(TAG, "RefreshToken已保存到本地");
+            }
+
             // 2. 提取用户信息（支持 userInfo / user / account 字段）
             if (sourceData.has("userInfo")) {
                 account = parseUserFromJson(sourceData.getJSONObject("userInfo"));
@@ -383,8 +520,14 @@ public class ServerApiService {
             }
 
             if (success) {
-                Log.d(TAG, "✅ 登录成功! 用户: " + (account != null ? account.getUserName() : "未知") + 
+                Log.d(TAG, "✅ 登录成功! 用户: " + (account != null ? account.getUserName() : "未知") +
                       ", Token: " + (hasValidToken ? "已保存" : "无"));
+
+                // 缓存用户资料（供WebSocket等模块使用）
+                if (account != null) {
+                    saveCachedUserProfile(account);
+                }
+
                 callback.onResult(true,
                         message.isEmpty() ? "登录成功" : message,
                         account);
@@ -530,6 +673,76 @@ public class ServerApiService {
     }
 
     /**
+     * 获取全部用户列表（作为好友列表展示）
+     * GET /api/users
+     * Header: Authorization: Bearer <token>
+     * 
+     * 说明：任意已登录用户均可调用，返回数据库中全部注册用户。
+     *       默认所有人互为好友，无需单独的好友关系表。
+     */
+    public void getAllUsers(UsersCallback callback) {
+        String url = getServerUrl() + "/api/users";
+
+        Request request = createAuthenticatedRequestBuilder(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "获取用户列表失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage(), null);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "获取用户列表响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        
+                        // Furion标准格式: { data: [...] } 或 { data: { data: [...] } }
+                        JSONArray usersArray = null;
+                        if (json.has("data")) {
+                            Object data = json.get("data");
+                            if (data instanceof JSONArray) {
+                                // 直接数组格式: { "data": [...] }
+                                usersArray = (JSONArray) data;
+                            } else if (data instanceof JSONObject) {
+                                JSONObject dataObj = (JSONObject) data;
+                                // 分页嵌套格式: { "data": { "data": [...], ... } }
+                                if (dataObj.has("data") && dataObj.get("data") instanceof JSONArray) {
+                                    usersArray = dataObj.getJSONArray("data");
+                                }
+                            }
+                        }
+
+                        if (usersArray != null && usersArray.length() > 0) {
+                            callback.onResult(true, "获取成功", usersArray);
+                        } else {
+                            callback.onResult(true, "暂无用户", new JSONArray());
+                        }
+                    } else if (response.code() == 401) {
+                        callback.onResult(false, "请先登录", null);
+                    } else {
+                        String errorMsg = "获取失败";
+                        try {
+                            JSONObject errorJson = new JSONObject(responseBody);
+                            errorMsg = errorJson.optString("message", errorJson.optString("msg", errorMsg));
+                        } catch (Exception ignored) {}
+                        callback.onResult(false, errorMsg, null);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析用户列表响应失败: " + e.getMessage());
+                    callback.onResult(false, "服务器响应异常", null);
+                }
+            }
+        });
+    }
+
+    /**
      * 登出
      * POST /api/auth/logout
      * 同时清除本地Token
@@ -544,16 +757,18 @@ public class ServerApiService {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                // 即使网络请求失败，也清除本地Token
+                // 即使网络请求失败，也清除本地Token和用户缓存
                 clearAuthToken();
+                clearCachedUserProfile();
                 Log.d(TAG, "登出完成（网络异常但已清除本地Token）");
                 callback.onResult(true, "已登出");
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
-                // 无论服务端是否成功，都清除本地Token
+                // 无论服务端是否成功，都清除本地Token和用户缓存
                 clearAuthToken();
+                clearCachedUserProfile();
                 response.close();
                 Log.d(TAG, "登出成功");
                 callback.onResult(true, "登出成功");
@@ -618,6 +833,11 @@ public class ServerApiService {
                     profile.getNo() != null ||
                     profile.getIdNumber() != null
             );
+        }
+
+        // 管理员权限
+        if (!userJson.isNull("role")) {
+            profile.setRole(userJson.optString("role", "user"));
         }
 
         return profile;
@@ -783,6 +1003,13 @@ public class ServerApiService {
     }
 
     /**
+     * 用户列表回调（返回JSON数组）
+     */
+    public interface UsersCallback {
+        void onResult(boolean success, String message, org.json.JSONArray users);
+    }
+
+    /**
      * 发布新帖子
      * POST /api/posts
      * Body: {"title": "...", "content": "..."}
@@ -907,13 +1134,21 @@ public class ServerApiService {
                         JSONObject json = new JSONObject(responseBody);
                         JSONArray postsArray = null;
 
-                        // 支持多种格式：{ data: [...] } 或 [...]
+                        // 支持多种格式：
+                        // 1. 双层嵌套: { data: { data: [...] } }
+                        // 2. 单层: { data: [...] } 或 { items: [...] }
                         if (json.has("data")) {
                             Object data = json.get("data");
                             if (data instanceof JSONArray) {
                                 postsArray = (JSONArray) data;
-                            } else if (data instanceof JSONObject && ((JSONObject) data).has("items")) {
-                                postsArray = ((JSONObject) data).getJSONArray("items");
+                            } else if (data instanceof JSONObject) {
+                                JSONObject dataObj = (JSONObject) data;
+                                // 检查双层嵌套 data.data
+                                if (dataObj.has("data") && dataObj.get("data") instanceof JSONArray) {
+                                    postsArray = dataObj.getJSONArray("data");
+                                } else if (dataObj.has("items")) {
+                                    postsArray = dataObj.getJSONArray("items");
+                                }
                             }
                         } else if (json.has("posts")) {
                             postsArray = json.getJSONArray("posts");
@@ -937,6 +1172,118 @@ public class ServerApiService {
                 }
             }
         });
+    }
+
+    /**
+     * 获取"我的帖子"列表
+     * GET /api/posts/my?pageIndex=1&pageSize=10 (需要JWT认证)
+     * 返回当前登录用户发布的所有帖子（分页）
+     */
+    public void getMyPosts(int pageIndex, int pageSize, PostsCallback callback) {
+        String url = getServerUrl() + "/api/posts/my?" +
+                "pageIndex=" + pageIndex +
+                "&pageSize=" + pageSize;
+
+        Request request = createAuthenticatedRequestBuilder(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "获取我的帖子失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage(), null);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "获取我的帖子响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        JSONArray postsArray = parsePostListResponse(json);
+                        callback.onResult(true, "获取成功", postsArray != null ? postsArray : new JSONArray());
+                    } else if (response.code() == 401) {
+                        callback.onResult(false, "请先登录", null);
+                    } else {
+                        callback.onResult(false, "服务器错误 (HTTP " + response.code() + ")", null);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析我的帖子失败: " + e.getMessage());
+                    callback.onResult(false, "解析响应失败", null);
+                }
+            }
+        });
+    }
+
+    /**
+     * 获取指定用户的帖子列表
+     * GET /api/posts/user/{userId}?pageIndex=1&pageSize=10 (公开接口，无需认证)
+     */
+    public void getUserPosts(long userId, int pageIndex, int pageSize, PostsCallback callback) {
+        String url = getServerUrl() + "/api/posts/user/" + userId + "?" +
+                "pageIndex=" + pageIndex +
+                "&pageSize=" + pageSize;
+
+        Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "获取用户帖子失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage(), null);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "获取用户帖子响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        JSONArray postsArray = parsePostListResponse(json);
+                        callback.onResult(true, "获取成功", postsArray != null ? postsArray : new JSONArray());
+                    } else {
+                        callback.onResult(false, "服务器错误 (HTTP " + response.code() + ")", null);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析用户帖子失败: " + e.getMessage());
+                    callback.onResult(false, "解析响应失败", null);
+                }
+            }
+        });
+    }
+
+    /**
+     * 解析帖子列表响应的通用方法（复用解析逻辑）
+     * 支持格式：{ data: [...] }, { data: { data: [...] } }, { items: [...] }
+     */
+    private JSONArray parsePostListResponse(JSONObject json) throws Exception {
+        JSONArray postsArray = null;
+        if (json.has("data")) {
+            Object data = json.get("data");
+            if (data instanceof JSONArray) {
+                postsArray = (JSONArray) data;
+            } else if (data instanceof JSONObject) {
+                JSONObject dataObj = (JSONObject) data;
+                if (dataObj.has("data") && dataObj.get("data") instanceof JSONArray) {
+                    postsArray = dataObj.getJSONArray("data");
+                } else if (dataObj.has("items")) {
+                    postsArray = dataObj.getJSONArray("items");
+                }
+            }
+        } else if (json.has("posts")) {
+            postsArray = json.getJSONArray("posts");
+        } else if (json.has("items")) {
+            postsArray = json.getJSONArray("items");
+        }
+        return postsArray;
     }
 
     /**
@@ -990,6 +1337,58 @@ public class ServerApiService {
                 } catch (Exception e) {
                     Log.e(TAG, "解析帖子详情失败: " + e.getMessage());
                     callback.onResult(false, "解析响应失败", null);
+                }
+            }
+        });
+    }
+
+    /**
+     * 删除帖子
+     * DELETE /api/posts/{postId} (需要认证，管理员可删除任意帖子)
+     */
+    public void deletePost(long postId, SimpleCallback callback) {
+        String url = getServerUrl() + "/api/posts/" + postId;
+
+        Request request = createAuthenticatedRequestBuilder(url)
+                .delete()
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "删除帖子失败: " + e.getMessage());
+                callback.onResult(false, "网络错误: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "删除帖子响应 [HTTP " + response.code() + "]: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject json = new JSONObject(responseBody);
+                        String message = json.optString("message", json.optString("msg", "删除成功"));
+                        callback.onResult(true, message);
+                    } else {
+                        String errorMsg = "删除失败";
+                        try {
+                            JSONObject errorJson = new JSONObject(responseBody);
+                            errorMsg = errorJson.optString("message", errorJson.optString("msg", "删除失败"));
+                        } catch (Exception ignored) {}
+                        
+                        if (response.code() == 401) {
+                            errorMsg = "请先登录";
+                        } else if (response.code() == 403) {
+                            errorMsg = "没有权限删除此帖子";
+                        } else if (response.code() == 404) {
+                            errorMsg = "帖子不存在";
+                        }
+                        callback.onResult(false, errorMsg);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "解析删除帖子响应失败: " + e.getMessage());
+                    callback.onResult(false, "服务器响应异常");
                 }
             }
         });
@@ -1235,12 +1634,18 @@ public class ServerApiService {
                         JSONObject json = new JSONObject(responseBody);
                         JSONArray commentsArray = null;
 
+                        // 支持双层嵌套格式: { data: { data: [...] } }
                         if (json.has("data")) {
                             Object data = json.get("data");
                             if (data instanceof JSONArray) {
                                 commentsArray = (JSONArray) data;
-                            } else if (data instanceof JSONObject && ((JSONObject) data).has("items")) {
-                                commentsArray = ((JSONObject) data).getJSONArray("items");
+                            } else if (data instanceof JSONObject) {
+                                JSONObject dataObj = (JSONObject) data;
+                                if (dataObj.has("data") && dataObj.get("data") instanceof JSONArray) {
+                                    commentsArray = dataObj.getJSONArray("data");
+                                } else if (dataObj.has("items")) {
+                                    commentsArray = dataObj.getJSONArray("items");
+                                }
                             }
                         } else if (json.has("comments")) {
                             commentsArray = json.getJSONArray("comments");
@@ -1395,5 +1800,21 @@ public class ServerApiService {
      */
     public interface SimpleCallback {
         void onResult(boolean success, String message);
+    }
+
+    // ==================== 轻量级用户资料（供WebSocket等模块使用）====================
+
+    /**
+     * 缓存的用户资料轻量模型
+     * 用于 WebSocket 认证、聊天消息发送等场景
+     */
+    public static class UserProfile {
+        public long userId;
+        public String userName;
+
+        public UserProfile(long userId, String userName) {
+            this.userId = userId;
+            this.userName = userName;
+        }
     }
 }

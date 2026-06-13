@@ -35,6 +35,8 @@ import java.util.Locale;
 
 public class ForumFragment extends Fragment {
 
+    private static final String TAG = "ForumFragment";
+
     private EditText etTitle, etContent, etComment;
     private Button btnPost, btnCancelPost, btnComment;
     private ImageButton btnBack, btnNewPost;
@@ -58,6 +60,88 @@ public class ForumFragment extends Fragment {
         checkLoginStatus(view);
 
         return view;
+    }
+
+    /**
+     * Fragment 显示/隐藏时的生命周期回调
+     * 解决：从底部导航栏切换回来时，重置帖子详情状态
+     */
+    @Override
+    public void onHiddenChanged(boolean hidden) {
+        super.onHiddenChanged(hidden);
+        if (!hidden && isAdded()) {
+            // 切回论坛页面，如果之前在查看详情页则重置
+            if (postDetailLayout != null && postDetailLayout.getVisibility() == View.VISIBLE) {
+                postDetailLayout.setVisibility(View.GONE);
+                currentViewingPostId = -1;
+                // 清理动态添加的管理员操作按钮
+                View existingActions = postDetailLayout.findViewWithTag("detail_admin_actions");
+                if (existingActions != null) {
+                    ((android.view.ViewGroup) existingActions.getParent()).removeView(existingActions);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Fragment 可见时刷新数据（处理返回场景）
+        if (!isHidden() && isAdded()) {
+            // 重新检查登录状态（用户可能在其他页面登录/登出）
+            View rootView = getView();
+            if (rootView != null) {
+                checkLoginStatus(rootView);
+                // 重新检查管理员权限
+                refreshAdminStatus();
+            }
+
+            // 如果在列表页，刷新帖子
+            if (postDetailLayout != null && postDetailLayout.getVisibility() != View.VISIBLE) {
+                loadPosts();
+            }
+        }
+    }
+
+    /**
+     * 刷新管理员状态（登录/登出后重新检测）
+     */
+    private void refreshAdminStatus() {
+        isAdmin = false;
+
+        // 检查本地数据库
+        if (currentUserId > 0 && db != null) {
+            User currentUser = db.userDao().getUserById(currentUserId);
+            if (currentUser != null && currentUser.isAdmin()) {
+                isAdmin = true;
+                Log.d(TAG, "refreshAdminStatus: 本地DB检测到管理员");
+            }
+        }
+
+        // 检查后端缓存的用户数据
+        if (!isAdmin) {
+            ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+            if (serverApi.isLoggedIn()) {
+                String cachedJson = userPrefs.getString("cached_account_json", null);
+                if (cachedJson != null && !cachedJson.isEmpty()) {
+                    try {
+                        org.json.JSONObject json = new org.json.JSONObject(cachedJson);
+                        String role = json.optString("role", "");
+                        int roleInt = json.optInt("roleId", 0);
+                        boolean isSuperAdmin = json.optBoolean("isSuperAdmin", false);
+                        if ("admin".equals(role) || "Administrator".equals(role) ||
+                                roleInt >= 1 || isSuperAdmin || "admin".equals(json.optString("userName", ""))) {
+                            isAdmin = true;
+                            Log.d(TAG, "refreshAdminStatus: 后端缓存检测到管理员 role=" + role);
+                        }
+                    } catch (Exception e) {
+                        // 解析失败不影响
+                    }
+                }
+            }
+        }
+
+        Log.d(TAG, "refreshAdminStatus: 最终 isAdmin=" + isAdmin);
     }
 
     private void initViews(View view) {
@@ -117,22 +201,54 @@ public class ForumFragment extends Fragment {
             }
         }
 
+        // 检查后端登录用户是否为管理员（通过缓存的用户数据）
+        ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+        if (!isAdmin && serverApi.isLoggedIn()) {
+            String cachedJson = userPrefs.getString("cached_account_json", null);
+            if (cachedJson != null && !cachedJson.isEmpty()) {
+                try {
+                    org.json.JSONObject json = new org.json.JSONObject(cachedJson);
+                    // 检查是否有角色/权限字段
+                    String role = json.optString("role", "");
+                    int roleInt = json.optInt("roleId", 0);
+                    boolean isSuperAdmin = json.optBoolean("isSuperAdmin", false);
+                    if ("admin".equals(role) || "Administrator".equals(role) || 
+                        roleInt >= 1 || isSuperAdmin || "admin".equals(json.optString("userName", ""))) {
+                        isAdmin = true;
+                    }
+                } catch (Exception e) {
+                    // 解析失败不影响
+                }
+            }
+        }
+
         // 初始化管理员账号（如果不存在）
         initAdminAccount();
     }
 
     /**
      * 检查登录状态并切换界面
+     * 帖子列表是公开接口，未登录用户也可以查看
      */
     private void checkLoginStatus(View view) {
         ServerApiService serverApi = ServerApiService.getInstance(getActivity());
 
-        if (!serverApi.isLoggedIn()) {
-            // 未登录（无JWT Token），显示登录提示界面
-            showLoginRequiredView(view);
+        // 无论是否登录都显示论坛内容（帖子列表是公开接口）
+        showForumView(view);
+
+        boolean loggedIn = serverApi.isLoggedIn();
+        Log.d(TAG, "checkLoginStatus: isLoggedIn=" + loggedIn
+                + ", token长度=" + (serverApi.getAuthToken() != null ? serverApi.getAuthToken().length() : 0)
+                + ", isAdmin=" + isAdmin
+                + ", currentUserId=" + currentUserId);
+
+        // 如果未登录，隐藏发帖按钮
+        if (!loggedIn) {
+            btnNewPost.setVisibility(View.GONE);
+            tvWelcome.setText("欢迎来到论坛");
         } else {
-            // 已登录（有Token），显示论坛内容
-            showForumView(view);
+            btnNewPost.setVisibility(View.VISIBLE);
+            updateWelcome();
         }
     }
 
@@ -290,6 +406,10 @@ public class ForumFragment extends Fragment {
             return;
         }
 
+        Log.d(TAG, "发帖请求: title=" + title + ", content长度=" + content.length()
+                + ", token存在=" + (serverApi.getAuthToken() != null)
+                + ", token长度=" + (serverApi.getAuthToken() != null ? serverApi.getAuthToken().length() : 0));
+
         // 显示加载提示
         Toast.makeText(getActivity(), "正在发布...", Toast.LENGTH_SHORT).show();
 
@@ -446,12 +566,72 @@ public class ForumFragment extends Fragment {
                     .start();
         });
 
+        // 标题行 + 删除按钮（管理员可见，放在右上角）
+        LinearLayout titleRow = new LinearLayout(getActivity());
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
         TextView titleText = new TextView(getActivity());
         titleText.setText(title);
         titleText.setTextColor(0xFF1F2937);
         titleText.setTextSize(18);
         titleText.setTypeface(null, android.graphics.Typeface.BOLD);
-        postItem.addView(titleText);
+        titleText.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        titleRow.addView(titleText);
+
+        Log.d(TAG, "createPostCard: postId=" + postId + ", isAdmin=" + isAdmin
+                + ", currentUserId=" + currentUserId);
+
+        // 管理员删除按钮（标题右侧，红色醒目）
+        if (isAdmin) {
+            TextView deleteBtn = new TextView(getActivity());
+            deleteBtn.setText("删除");
+            deleteBtn.setTextColor(0xFFFFFFFF);
+            deleteBtn.setTextSize(12);
+            deleteBtn.setPadding(10, 4, 10, 4);
+            deleteBtn.setBackgroundResource(R.drawable.btn_delete_bg);
+            final long postIdToDelete = finalPostId;
+            deleteBtn.setOnClickListener(v -> {
+                v.setClickable(false);  // 防止重复点击
+                new android.app.AlertDialog.Builder(getActivity())
+                        .setTitle("确认删除")
+                        .setMessage("确定要删除该帖子吗？此操作不可恢复。")
+                        .setPositiveButton("删除", (dialog, which) -> {
+                            ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+                            if (!serverApi.isLoggedIn()) {
+                                Toast.makeText(getActivity(), "请先登录", Toast.LENGTH_SHORT).show();
+                                v.setClickable(true);
+                                return;
+                            }
+
+                            Toast.makeText(getActivity(), "正在删除...", Toast.LENGTH_SHORT).show();
+                            serverApi.deletePost(postIdToDelete, (success, message) -> {
+                                if (getActivity() == null || getActivity().isFinishing()) return;
+                                getActivity().runOnUiThread(() -> {
+                                    if (success) {
+                                        backToList();
+                                        loadPosts();
+                                        Toast.makeText(getActivity(), message != null ? message : "帖子已删除", Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        v.setClickable(true);
+                                        Toast.makeText(getActivity(), message != null ? message : "删除失败", Toast.LENGTH_LONG).show();
+                                    }
+                                });
+                            });
+                        })
+                        .setNegativeButton("取消", new android.content.DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(android.content.DialogInterface dialog, int which) {
+                                v.setClickable(true);
+                            }
+                        })
+                        .show();
+            });
+            titleRow.addView(deleteBtn);
+        }
+
+        postItem.addView(titleRow);
 
         TextView metaText = new TextView(getActivity());
         metaText.setText(authorName + " · " + timeStr);
@@ -491,34 +671,7 @@ public class ForumFragment extends Fragment {
         commentsText.setPadding(20, 0, 0, 0);
         statsRow.addView(commentsText);
 
-            // 管理员删除按钮
-            if (isAdmin) {
-                View spacer = new View(getActivity());
-                LinearLayout.LayoutParams spacerParams = new LinearLayout.LayoutParams(
-                        0, LinearLayout.LayoutParams.MATCH_PARENT, 1f);
-                spacer.setLayoutParams(spacerParams);
-                statsRow.addView(spacer);
-
-                ImageButton deleteBtn = new ImageButton(getActivity());
-                deleteBtn.setImageResource(R.drawable.ic_delete);
-                deleteBtn.setBackgroundColor(android.graphics.Color.TRANSPARENT);
-                deleteBtn.setColorFilter(0xFFEF4444);  // 红色
-                deleteBtn.setPadding(16, 8, 8, 8);
-                final long postIdToDelete = finalPostId;
-                deleteBtn.setOnClickListener(v -> {
-                    new android.app.AlertDialog.Builder(getActivity())
-                            .setTitle("确认删除")
-                            .setMessage("确定要删除该帖子吗？")
-                            .setPositiveButton("删除", (dialog, which) -> {
-                                Toast.makeText(getActivity(), "删除功能开发中", Toast.LENGTH_SHORT).show();
-                            })
-                            .setNegativeButton("取消", null)
-                            .show();
-                });
-                statsRow.addView(deleteBtn);
-            }
-
-            postItem.addView(statsRow);
+        postItem.addView(statsRow);
             return postItem;
     }
 
@@ -533,8 +686,14 @@ public class ForumFragment extends Fragment {
     private void loadPostDetail(long postId) {
         ServerApiService serverApi = ServerApiService.getInstance(getActivity());
         
-        // 显示加载状态
-        postDetailLayout.removeAllViews();
+        // 重置状态
+        currentViewingPostId = -1;
+        
+        // 清理之前动态添加的管理员操作按钮
+        View existingActions = postDetailLayout.findViewWithTag("detail_admin_actions");
+        if (existingActions != null) {
+            ((android.view.ViewGroup) existingActions.getParent()).removeView(existingActions);
+        }
         
         serverApi.getPostDetail(postId, (success, message, postData) -> {
             if (getActivity() == null || getActivity().isFinishing()) return;
@@ -577,6 +736,60 @@ public class ForumFragment extends Fragment {
             tvDetailContent.setText(content);
             tvDetailLikes.setText("点赞: " + likeCount);
             tvDetailComments.setText("评论: " + commentCount);
+
+            // 清除之前动态添加的管理员操作按钮（避免重复添加）
+            View existingActions = postDetailLayout.findViewWithTag("detail_admin_actions");
+            if (existingActions != null) {
+                ((android.view.ViewGroup) existingActions.getParent()).removeView(existingActions);
+            }
+
+            // 管理员删除按钮（详情页 - 红色背景醒目按钮）
+            if (isAdmin && currentViewingPostId > 0) {
+                LinearLayout detailActions = new LinearLayout(getActivity());
+                detailActions.setTag("detail_admin_actions");  // 设置tag以便后续清理
+                detailActions.setOrientation(LinearLayout.HORIZONTAL);
+                detailActions.setGravity(android.view.Gravity.END);
+                detailActions.setPadding(16, 8, 8, 8);
+
+                TextView deleteDetailBtn = new TextView(getActivity());
+                deleteDetailBtn.setText("🗑 删除此帖");
+                deleteDetailBtn.setTextColor(0xFFFFFFFF);
+                deleteDetailBtn.setTextSize(14);
+                deleteDetailBtn.setPadding(20, 10, 20, 10);
+                deleteDetailBtn.setBackgroundResource(R.drawable.btn_delete_bg);
+                final long postIdForDelete = currentViewingPostId;
+                deleteDetailBtn.setOnClickListener(v -> {
+                    new android.app.AlertDialog.Builder(getActivity())
+                            .setTitle("确认删除")
+                            .setMessage("确定要删除该帖子吗？此操作不可恢复。")
+                            .setPositiveButton("删除", (dialog, which) -> {
+                                ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+                                if (!serverApi.isLoggedIn()) {
+                                    Toast.makeText(getActivity(), "请先登录", Toast.LENGTH_SHORT).show();
+                                    return;
+                                }
+                                
+                                Toast.makeText(getActivity(), "正在删除...", Toast.LENGTH_SHORT).show();
+                                serverApi.deletePost(postIdForDelete, (success, message) -> {
+                                    if (getActivity() == null || getActivity().isFinishing()) return;
+                                    getActivity().runOnUiThread(() -> {
+                                        if (success) {
+                                            backToList();
+                                            loadPosts();
+                                            Toast.makeText(getActivity(), message != null ? message : "帖子已删除", Toast.LENGTH_SHORT).show();
+                                        } else {
+                                            Toast.makeText(getActivity(), message != null ? message : "删除失败", Toast.LENGTH_LONG).show();
+                                        }
+                                    });
+                                });
+                            })
+                            .setNegativeButton("取消", null)
+                            .show();
+                });
+                detailActions.addView(deleteDetailBtn);
+
+                postDetailLayout.addView(detailActions);
+            }
 
             // 从服务器加载评论
             loadCommentsFromServer(currentViewingPostId);
@@ -689,23 +902,29 @@ public class ForumFragment extends Fragment {
     }
 
     /**
-     * 删除帖子（仅管理员）
+     * 删除帖子（仅管理员，调用服务器API）
      */
-    private void deletePost(int postId) {
-        // 先删除该帖子的所有评论
-        List<Comment> comments = db.commentDao().getCommentsByPostId(postId);
-        for (Comment comment : comments) {
-            db.commentDao().delete(comment.getId());
+    private void deletePost(long postId) {
+        ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+        if (!serverApi.isLoggedIn()) {
+            Toast.makeText(getActivity(), "请先登录", Toast.LENGTH_SHORT).show();
+            return;
         }
-
-        // 删除帖子
-        db.postDao().deletePost(postId);
-
-        // 刷新列表
-        loadPosts();
-        updateWelcome();
-
-        Toast.makeText(getActivity(), "帖子已删除", Toast.LENGTH_SHORT).show();
+        
+        Toast.makeText(getActivity(), "正在删除...", Toast.LENGTH_SHORT).show();
+        serverApi.deletePost(postId, (success, message) -> {
+            if (getActivity() == null || getActivity().isFinishing()) return;
+            getActivity().runOnUiThread(() -> {
+                if (success) {
+                    backToList();
+                    loadPosts();
+                    updateWelcome();
+                    Toast.makeText(getActivity(), message != null ? message : "帖子已删除", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(getActivity(), message != null ? message : "删除失败", Toast.LENGTH_LONG).show();
+                }
+            });
+        });
     }
 
     private void addComment() {
@@ -783,6 +1002,15 @@ public class ForumFragment extends Fragment {
     }
 
     public void backToList() {
+        // 重置状态
+        currentViewingPostId = -1;
+        
+        // 清理动态添加的管理员操作按钮
+        View existingActions = postDetailLayout.findViewWithTag("detail_admin_actions");
+        if (existingActions != null) {
+            ((android.view.ViewGroup) existingActions.getParent()).removeView(existingActions);
+        }
+        
         Animation slideOutRight = AnimationUtils.loadAnimation(getActivity(), R.anim.slide_out_right);
         slideOutRight.setAnimationListener(new Animation.AnimationListener() {
             @Override
@@ -838,13 +1066,104 @@ public class ForumFragment extends Fragment {
         } else if (selectedTag == tagNew) {
             sortBy = "time";  // 按时间排序（最新）
         } else if (selectedTag == tagMy) {
-            // 我的帖子（需要根据用户筛选，暂未实现）
-            Toast.makeText(getActivity(), "我的帖子功能开发中", Toast.LENGTH_SHORT).show();
+            // 我的帖子：调用 GET /api/posts/my（需要登录）
+            loadMyPosts();
             return;
         }
-        
+
         // 调用服务器API加载对应排序的帖子
         loadPostsWithFilter(sortBy, tag);
+    }
+
+    /**
+     * 加载"我的帖子"列表
+     * 调用 GET /api/posts/my（需要JWT认证）
+     */
+    private void loadMyPosts() {
+        ServerApiService serverApi = ServerApiService.getInstance(getActivity());
+
+        if (!serverApi.isLoggedIn()) {
+            Toast.makeText(getActivity(), "请先登录查看我的帖子", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        postsContainer.removeAllViews();
+        TextView loadingText = new TextView(getActivity());
+        loadingText.setText("正在加载我的帖子...");
+        loadingText.setTextColor(0xFF6B7280);
+        loadingText.setTextSize(14);
+        loadingText.setGravity(android.view.Gravity.CENTER);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                (int) (120 * getResources().getDisplayMetrics().density)
+        );
+        lp.setMargins(0, 20, 0, 0);
+        loadingText.setLayoutParams(lp);
+        postsContainer.addView(loadingText);
+
+        serverApi.getMyPosts(1, 50, new ServerApiService.PostsCallback() {
+            @Override
+            public void onResult(boolean success, String message, org.json.JSONArray posts) {
+                getActivity().runOnUiThread(() -> {
+                    postsContainer.removeAllViews();
+
+                    if (!success) {
+                        TextView errorText = new TextView(getActivity());
+                        errorText.setText(message != null ? message : "加载失败");
+                        errorText.setTextColor(0xFFEF4444);
+                        errorText.setTextSize(14);
+                        errorText.setGravity(android.view.Gravity.CENTER);
+                        LinearLayout.LayoutParams errLp = new LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                (int) (80 * getResources().getDisplayMetrics().density)
+                        );
+                        errLp.setMargins(0, 40, 0, 0);
+                        errorText.setLayoutParams(errLp);
+                        postsContainer.addView(errorText);
+                        return;
+                    }
+
+                    if (posts.length() == 0) {
+                        TextView emptyText = new TextView(getActivity());
+                        emptyText.setText("你还没有发布过帖子");
+                        emptyText.setTextColor(0xFF9CA3AF);
+                        emptyText.setTextSize(14);
+                        emptyText.setGravity(android.view.Gravity.CENTER);
+                        LinearLayout.LayoutParams empLp = new LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                (int) (80 * getResources().getDisplayMetrics().density)
+                        );
+                        empLp.setMargins(0, 40, 0, 0);
+                        emptyText.setLayoutParams(empLp);
+                        postsContainer.addView(emptyText);
+                        return;
+                    }
+
+                    for (int i = 0; i < posts.length(); i++) {
+                        try {
+                            org.json.JSONObject postObj = posts.getJSONObject(i);
+                            String title = postObj.optString("title", "无标题");
+                            String content = postObj.optString("content", "");
+                            String authorName = postObj.optString("userName", "匿名用户");
+                            if (authorName.isEmpty()) authorName = "匿名用户";
+                            String timeStr = "";
+                            if (postObj.has("createdTime")) {
+                                timeStr = formatTime(parseTime(postObj.getString("createdTime")));
+                            } else if (postObj.has("createdAt")) {
+                                timeStr = formatTime(parseTime(postObj.getString("createdAt")));
+                            }
+                            int likeCount = postObj.optInt("likeCount", 0);
+                            int commentCount = postObj.optInt("commentCount", 0);
+                            long postId = postObj.optLong("id", -1);
+                            LinearLayout postItem = createPostCard(postId, title, content, authorName, timeStr, likeCount, commentCount);
+                            postsContainer.addView(postItem);
+                        } catch (Exception e) {
+                            Log.e(TAG, "解析我的帖子失败: " + e.getMessage());
+                        }
+                    }
+                });
+            }
+        });
     }
 
     /**

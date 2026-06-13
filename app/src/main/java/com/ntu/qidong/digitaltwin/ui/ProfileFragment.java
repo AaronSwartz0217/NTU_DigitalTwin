@@ -12,6 +12,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -39,6 +40,7 @@ public class ProfileFragment extends Fragment {
     private Button btnChangeNickname;
     private View btnSettings;
     private View btnAbout;
+    private Button btnServerSettings;
 
     // 档案展示相关视图
     private TextView tvUserId, tvUserNo, tvUserName, tvGender, tvEthnicGroup;
@@ -110,6 +112,7 @@ public class ProfileFragment extends Fragment {
         btnChangeNickname = view.findViewById(R.id.btn_change_nickname);
         btnSettings = view.findViewById(R.id.btn_settings);
         btnAbout = view.findViewById(R.id.btn_about);
+        btnServerSettings = view.findViewById(R.id.btn_server_settings);
 
         // 档案信息视图
         tvUserId = view.findViewById(R.id.tv_user_id_display);
@@ -151,6 +154,7 @@ public class ProfileFragment extends Fragment {
         btnChangeNickname.setOnClickListener(v -> showEditProfileDialog());
         btnSettings.setOnClickListener(v -> showSettingsDialog());
         btnAbout.setOnClickListener(v -> showAboutDialog());
+        btnServerSettings.setOnClickListener(v -> showServerAddressDialog());
 
         // 新增菜单项点击事件
         view.findViewById(R.id.menu_my_posts).setOnClickListener(v ->
@@ -254,6 +258,7 @@ public class ProfileFragment extends Fragment {
             json.put("weight", account.getWeight());
             json.put("height", account.getHeight());
             json.put("hasProfile", account.isHasProfile());
+            json.put("role", account.getRole());  // 管理员权限
 
             userPrefs.edit().putString("cached_account_json", json.toString()).apply();
         } catch (Exception e) {
@@ -593,6 +598,10 @@ public class ProfileFragment extends Fragment {
                                     .remove("cached_account_json")
                                     .apply();
                             currentAccount = null;
+
+                            // 清空聊天室缓存
+                            ChatRoomActivity.clearChatCache(getActivity());
+
                             updateUI();
                             Toast.makeText(getActivity(), "已退出登录", Toast.LENGTH_SHORT).show();
                         });
@@ -624,44 +633,50 @@ public class ProfileFragment extends Fragment {
     }
 
     /**
-     * 服务器地址配置对话框
+     * 服务器地址配置对话框（模拟器/真机 二选一）
      */
     private void showServerAddressDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-        builder.setTitle("服务器地址");
+        String currentUrl = serverApi.getServerUrl();
 
-        EditText etAddress = new EditText(getActivity());
-        etAddress.setHint("例如: http://192.168.1.100:5002");
-        etAddress.setText(serverApi.getServerUrl());
-        etAddress.setTextColor(getResources().getColor(android.R.color.black));
-        etAddress.setHintTextColor(getResources().getColor(android.R.color.darker_gray));
-        etAddress.setBackgroundResource(R.drawable.chat_input_bg_modern);
-        etAddress.setPadding(16, 12, 16, 12);
-        etAddress.setSingleLine(true);
+        // 预设服务器地址选项
+        final String URL_EMULATOR = "http://10.0.2.2:5002";   // Android模拟器访问宿主机
+        final String URL_REAL_DEVICE = "http://192.168.137.1:5002";  // 真机通过电脑热点访问
 
-        builder.setView(etAddress);
+        String[] options = {
+                "📱 模拟器 (Android Emulator)\n    " + URL_EMULATOR + "\n    仅适用于Android Studio模拟器",
+                "📲 真机调试 (Real Device)\n    " + URL_REAL_DEVICE + "\n    电脑开热点，手机连接后使用"
+        };
 
-        builder.setPositiveButton("保存", (dialog, which) -> {
-            String address = etAddress.getText().toString().trim();
-            if (!address.isEmpty()) {
-                serverApi.setServerUrl(address);
-                Toast.makeText(getActivity(), "服务器地址已更新", Toast.LENGTH_SHORT).show();
+        // 判断当前选中哪一项
+        int checkedItem = currentUrl.contains("10.0.2.2") ? 0 : 1;
 
-                // 测试连接
-                serverApi.testConnection((success, message) -> {
-                    getActivity().runOnUiThread(() -> {
-                        if (success) {
-                            Toast.makeText(getActivity(), "✓ 服务器连接成功！", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(getActivity(), "✗ 连接失败: " + message, Toast.LENGTH_LONG).show();
-                        }
+        new AlertDialog.Builder(getActivity())
+                .setTitle("选择运行环境")
+                .setSingleChoiceItems(options, checkedItem, (dialog, which) -> {
+                    // 选择后不自动关闭，等用户点确认
+                })
+                .setPositiveButton("确认", (dialog, which) -> {
+                    ListView listView = ((AlertDialog) dialog).getListView();
+                    int selected = listView.getCheckedItemPosition();
+                    String selectedUrl = (selected == 0) ? URL_EMULATOR : URL_REAL_DEVICE;
+
+                    serverApi.setServerUrl(selectedUrl);
+                    Toast.makeText(getActivity(), "已切换到: " +
+                            (selected == 0 ? "模拟器模式" : "真机模式"), Toast.LENGTH_SHORT).show();
+
+                    // 测试连接
+                    serverApi.testConnection((success, message) -> {
+                        getActivity().runOnUiThread(() -> {
+                            if (success) {
+                                Toast.makeText(getActivity(), "✓ 服务器连接成功！", Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(getActivity(), "✗ 连接失败: " + message, Toast.LENGTH_LONG).show();
+                            }
+                        });
                     });
-                });
-            }
-        });
-
-        builder.setNegativeButton("取消", null);
-        builder.show();
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void showAboutDialog() {
@@ -697,6 +712,7 @@ public class ProfileFragment extends Fragment {
         if (!json.isNull("height")) profile.setHeight(json.optDouble("height"));
 
         profile.setHasProfile(json.optBoolean("hasProfile", false));
+        if (!json.isNull("role")) profile.setRole(json.optString("role", "user"));
 
         return profile;
     }
